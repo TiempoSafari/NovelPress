@@ -3,6 +3,7 @@ import os
 import re
 import tempfile
 import threading
+import json
 from pathlib import Path
 
 import book
@@ -20,6 +21,26 @@ class Studio:
         self._stop = threading.Event()
         self._lock = threading.Lock()
         self._progress = {"done": 0, "chapter": ""}
+        self._settings = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "NovelPress" / "settings.json"
+
+    def default_export_folder(self):
+        try:
+            data = json.loads(self._settings.read_text("utf-8"))
+            folder = Path(data.get("export_folder", ""))
+            return str(folder) if folder.is_dir() else ""
+        except (OSError, ValueError):
+            return ""
+
+    def choose_export_folder(self):
+        selection = webview.windows[0].create_file_dialog(webview.FileDialog.FOLDER)
+        if not selection:
+            return {"cancelled": True}
+        folder = Path(selection if isinstance(selection, str) else selection[0]).resolve()
+        if not folder.is_dir():
+            return {"error": "请选择一个现有文件夹。"}
+        self._settings.parent.mkdir(parents=True, exist_ok=True)
+        self._settings.write_text(json.dumps({"export_folder": str(folder)}, ensure_ascii=False), encoding="utf-8")
+        return {"path": str(folder)}
 
     def inspect(self, url):
         try:
@@ -107,11 +128,11 @@ class Studio:
 
     def resize_edge(self, edge):
         from ctypes import windll
-        edges = ("w", "e", "n", "nw", "ne", "s", "sw", "se")
+        edges = {"w": 1, "e": 2, "n": 3, "nw": 4, "ne": 5, "s": 6, "sw": 7, "se": 8}
         hwnd = webview.windows[0].native.Handle.ToInt64()
         if edge in edges and not windll.user32.IsZoomed(hwnd):
             # WM_SYSCOMMAND / SC_SIZE hands the drag to Windows' sizing loop.
-            windll.user32.PostMessageW(hwnd, 0x0112, 0xF000 + edges.index(edge) + 1, 0)
+            windll.user32.PostMessageW(hwnd, 0x0112, 0xF000 + edges[edge], 0)
 
     def esj_login(self):
         if self._login is None:
@@ -160,10 +181,17 @@ class Studio:
             if not selected or not title.strip():
                 raise ValueError("请填写书名并选择章节。")
             filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", title)[:100].rstrip(" .") or "小说"
-            target = webview.windows[0].create_file_dialog(webview.FileDialog.SAVE, save_filename=filename + ".epub", file_types=("电子书 (*.epub)",))
-            if not target:
-                return {"cancelled": True}
-            dest = Path(target if isinstance(target, str) else target[0])
+            folder = self.default_export_folder()
+            if folder:
+                dest = Path(folder) / (filename + ".epub")
+                if dest.exists():
+                    from datetime import datetime
+                    dest = Path(folder) / (filename + " " + datetime.now().strftime("%Y%m%d %H%M%S") + ".epub")
+            else:
+                target = webview.windows[0].create_file_dialog(webview.FileDialog.SAVE, save_filename=filename + ".epub", file_types=("电子书 (*.epub)",))
+                if not target:
+                    return {"cancelled": True}
+                dest = Path(target if isinstance(target, str) else target[0])
             if dest.suffix.lower() != ".epub":
                 dest = Path(str(dest) + ".epub")
                 if dest.exists():

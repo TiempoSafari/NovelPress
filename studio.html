@@ -17,7 +17,16 @@ body{height:100vh;display:flex;flex-direction:column;overflow:hidden}
 #dragTitle strong{font-size:22px}#dragTitle span{color:#cad7ca;border-color:#627b6d;font-size:12px}
 .appbar nav,.windowButtons{display:flex;align-items:center}.appbar button{background:transparent;border:0;color:#e2eadf;padding:7px 10px;font-size:12px;font-weight:500}
 .appbar button:hover{background:#345447;color:white}.appbar button:focus-visible{outline-color:#d7e2b9;outline-offset:-3px}
-.windowButtons{border-left:1px solid #547060;height:100%;padding-left:4px}.windowButtons button{border-radius:0;width:40px;height:100%;font:18px "Segoe UI",sans-serif}.windowButtons #closeWindow:hover{background:#b73542}
+
+.windowButtons{border-left:1px solid #547060;height:100%;padding-left:8px;gap:5px}
+.windowButtons button{border:0;border-radius:5px;width:36px;height:32px;padding:0;display:grid;place-items:center;color:#dce9df;background:#ffffff0b}
+.windowButtons button:hover{background:#ffffff20}
+.windowButtons #closeWindow:hover{background:#c13d48;color:white}
+.windowButtons svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.55;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.windowButtons #maxWindow svg{width:13px;height:13px}
+.exportSettings{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid #cdd5ca}
+.exportSettings button{padding:5px 7px;font-size:12px}.exportFolder{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#56665a;font-size:12px}
+
 .shell{min-height:0;flex:1}.work{min-height:0;overflow:auto;gap:16px;padding:22px clamp(20px,3vw,40px) 18px;background:var(--paper)}
 aside{overflow:auto;background:#eef2eb}.poster{border:1px solid #d5ded2;background:#e1e8db;min-height:180px;margin-bottom:10px}
 .poster canvas{box-shadow:4px 5px 0 #c0ccb9;transition:transform .22s ease}.poster:hover canvas{transform:translateY(-2px)}
@@ -46,10 +55,10 @@ dialog[open],.meter:not([hidden]),#release:not([hidden]),.work,.rows.fresh{anima
 <header class="appbar">
   <div id="dragTitle" class="pywebview-drag-region"><img alt="" width="32" height="32" draggable="false" src="data:image/x-icon;base64,__APP_ICON__"><strong>拾卷</strong><span>网页小说制书工具</span></div>
   <nav aria-label="应用工具"><button id="plugins">插件目录</button><button id="install" disabled>安装插件</button><button id="update" disabled>检查更新</button></nav>
-  <div class="windowButtons"><button id="minWindow" title="最小化" aria-label="最小化">─</button><button id="maxWindow" title="最大化" aria-label="最大化">□</button><button id="closeWindow" title="关闭窗口" aria-label="关闭窗口">×</button></div>
+  <div class="windowButtons"><button id="minWindow" title="最小化" aria-label="最小化"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10"/></svg></button><button id="maxWindow" title="最大化" aria-label="最大化"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="3.25" width="9.5" height="9.5" rx="1.2"/></svg></button><button id="closeWindow" title="关闭窗口" aria-label="关闭窗口"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg></button></div>
 </header>
-<div id="release" hidden><div class="bar"><span id="releaseText" role="status"></span><div><button id="getRelease" hidden>下载并打开安装向导</button><button class="plain" id="dismissRelease">关闭</button></div></div><div id="releaseMeter" hidden><progress aria-label="安装包下载进度" id="releaseBar"></progress><output id="releaseNumbers"></output></div></div><div class="shell"><aside><h2>书籍预览</h2><div class="poster"><canvas id="cover" width="540" height="756" aria-label="电子书封面预览"></canvas></div><span id="coverLabel">排版封面</span><div class="coverTools"><button class="plain" id="uploadCover">选择图片…</button><button class="plain" id="resetCover" hidden>恢复默认</button></div><input hidden type="file" id="imageFile" accept="image/jpeg,image/png,image/webp"><label class="field" for="title">书名</label><input type="text" id="title" maxlength="180" placeholder="解析后自动填写"><label class="field" for="author">作者</label><input type="text" id="author" maxlength="120" placeholder="可选"><div class="meta"><span>电子书格式</span><b>EPUB 3</b></div></aside>
-<main class="work"><h1>制书工作台</h1><form class="origin" id="form"><label for="url">小说网页</label><div class="urlrow"><input type="url" id="url" placeholder="https://…" required><button class="primary" id="inspect" disabled>解析网页</button></div><p class="hint">粘贴目录或正文网址，也可以<button type="button" class="example" id="example">试用《呐喊》</button>。 <button class="example" type="button" id="esjLogin" hidden>登录 ESJ Zone</button></p><div id="unsupported" hidden role="alert" style="margin-top:12px"><strong id="reason"></strong> <button type="button" id="installHere">安装对应插件…</button></div></form>
+<div id="release" hidden><div class="bar"><span id="releaseText" role="status"></span><div><button id="getRelease" hidden>下载并打开安装向导</button><button class="plain" id="dismissRelease">关闭</button></div></div><div id="releaseMeter" hidden><progress aria-label="安装包下载进度" id="releaseBar"></progress><output id="releaseNumbers"></output></div></div><div class="shell"><aside><h2>书籍预览</h2><div class="poster"><canvas id="cover" width="540" height="756" aria-label="电子书封面预览"></canvas></div><span id="coverLabel">排版封面</span><div class="exportSettings"><span class="exportFolder" id="exportFolder">每次选择保存位置</span><button class="plain" id="setExportFolder">设置导出文件夹…</button></div><div class="coverTools"><button class="plain" id="uploadCover">选择图片…</button><button class="plain" id="resetCover" hidden>恢复默认</button></div><input hidden type="file" id="imageFile" accept="image/jpeg,image/png,image/webp"><label class="field" for="title">书名</label><input type="text" id="title" maxlength="180" placeholder="解析后自动填写"><label class="field" for="author">作者</label><input type="text" id="author" maxlength="120" placeholder="可选"><div class="meta"><span>电子书格式</span><b>EPUB 3</b></div></aside>
+<main class="work"><h1>制书工作台</h1><form class="origin" id="form"><label for="url">小说网页</label><div class="urlrow"><input type="url" id="url" placeholder="https://…" required><button class="primary" id="inspect" disabled>解析网页</button></div><p class="hint">粘贴小说目录或正文网址。 <button class="example" type="button" id="esjLogin" hidden>登录 ESJ Zone</button></p><div id="unsupported" hidden role="alert" style="margin-top:12px"><strong id="reason"></strong> <button type="button" id="installHere">安装对应插件…</button></div></form>
 <section class="toc"><div class="bar"><h2>章节目录</h2><div><button class="plain" id="renameMany" disabled>批量改名…</button><button class="plain" id="all" disabled>全选</button><button class="plain" id="none" disabled>清空选择</button></div></div><div class="rows" id="rows"><div class="empty"><svg width="58" height="35" viewBox="0 0 58 35" fill="none" stroke="#6b8776" stroke-width="1.7" aria-hidden="true"><path d="M3 6q14-4 25 3 12-7 26-3v23q-14-4-26 2-12-6-25-2zM28 9v21M7 2q11-2 20 3m5 0q10-5 19-3"/></svg><strong>等待导入章节</strong><span class="small">解析网页后，在这里选择要收录的章节。</span></div></div></section>
 <div class="meter" id="bookMeter" hidden><div><strong id="progressPhase">正在下载章节</strong><output id="progressNumber"></output></div><progress id="progress" aria-label="章节下载进度"></progress></div><div class="bottom"><div><strong id="count">已选 0 章</strong><div class="status" role="status" id="status"></div></div><div class="actions"><button id="cancel" hidden>取消</button><button id="export" class="primary" disabled>导出 EPUB ↓</button></div></div></main></div>
 <dialog id="renameBox"><h2 id="renameHeading"></h2>
@@ -95,6 +104,12 @@ el('imageFile').onchange=async()=>{
  try{setCover(await imageFrom(objectUrl),'自选封面')}catch{msg('图片无法读取，请选择 JPG、PNG 或 WebP。',true)}
  finally{URL.revokeObjectURL(objectUrl);busy=false;sync()}
 };
+el('setExportFolder').onclick=async()=>{
+ try{const result=await pywebview.api.choose_export_folder();
+  if(result.error)throw Error(result.error);
+  if(result.path)el('exportFolder').textContent=result.path;
+ }catch(err){msg(err.message,true)}
+};
 el('esjLogin').onclick=async()=>{try{await pywebview.api.esj_login()}catch(e){msg(e.message,true)}};
 function msg(s='',error=false){el('status').textContent=s;el('status').classList.toggle('error',error)}
 const initialRows=el("rows").innerHTML;
@@ -108,7 +123,7 @@ function sync(){el("install").disabled=busy||!ready;el("installHere").disabled=b
  el('count').textContent=book?'已选 '+chosen.size+' / '+book.chapters.length+' 章':'已选 0 章';
  el('export').disabled=busy||!valid||!chosen.size||!ttl.value.trim();el('inspect').disabled=busy||!ready;
  for(const key of ['all','none'])el(key).disabled=busy||!valid;
- el('example').disabled=busy||!ready;for(const box of [ttl,auth,url])box.disabled=busy;el('rows').inert=busy||!valid;
+ for(const box of [ttl,auth,url])box.disabled=busy;el('rows').inert=busy||!valid;
 }
 function render(){
  const frag=document.createDocumentFragment();
@@ -165,7 +180,6 @@ async function installPlugin(){
 el('install').onclick=installPlugin;el('installHere').onclick=installPlugin;
 el('plugins').onclick=async()=>{try{await pywebview.api.open_plugins()}catch(err){msg(err.message,true)}};
 el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');bookProgress(0,0,'正在解析目录');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((_,i)=>i));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el("bookMeter").hidden=true;el('cancel').hidden=true;busy=false;sync()}};
-el('example').onclick=()=>{url.value='https://zh.wikisource.org/wiki/呐喊';el('form').requestSubmit()};
 el('all').onclick=()=>{chosen=new Set(book.chapters.map((_,i)=>i));render()};el('none').onclick=()=>{chosen.clear();render()};
 el('cancel').onclick=async()=>{await pywebview.api.cancel();msg('正在取消…')};
 function bookProgress(done,total,phase){
@@ -246,5 +260,5 @@ for(const edge of ['n','s','e','w','ne','se','nw','sw']){
  grip.onpointerdown=e=>{if(e.button===0&&ready){e.preventDefault();pywebview.api.resize_edge(edge)}};
  document.body.append(grip)
 }
-window.addEventListener('pywebviewready',()=>{ready=true;sync();checkUpdates(false);setInterval(()=>checkUpdates(false),12*60*60*1000)});cover();sync();
+window.addEventListener('pywebviewready',async()=>{ready=true;sync();const folder=await pywebview.api.default_export_folder();if(folder)el('exportFolder').textContent=folder;checkUpdates(false);setInterval(()=>checkUpdates(false),12*60*60*1000)});cover();sync();
 </script></html>

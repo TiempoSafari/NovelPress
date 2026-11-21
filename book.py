@@ -266,13 +266,25 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                 raise ValueError(f'《{ch["name"]}》读取失败：{error}') from error
             name = xml(ch["name"])
             body = [f"<h1>{name}</h1>"]
+            image_total = sum(
+                isinstance(run, Illustration)
+                for paragraph in paragraphs if not isinstance(paragraph, str)
+                for run in paragraph
+            )
+            image_done = 0
             for paragraph in paragraphs:
                 if isinstance(paragraph, str):
                     body.append(f"<p>{xml(paragraph)}</p>")
                 else:
-                    progress(i - 1, f"{ch['name']} · 正在收录插图")
-                    content = "".join(xml(run) if isinstance(run, str) else images.render(run, ch["name"])
-                                      for run in paragraph)
+                    content_parts = []
+                    for run in paragraph:
+                        if isinstance(run, Illustration):
+                            image_done += 1
+                            progress(i - 1, f"{ch['name']} · 正在收录插图（{image_done}/{image_total}）")
+                            content_parts.append(images.render(run, ch["name"]))
+                        else:
+                            content_parts.append(xml(run))
+                    content = "".join(content_parts)
                     body.append(f'<p class="art">{content}</p>')
             book.writestr(f"ch{i}.xhtml", xhtml(ch["name"], "".join(body)))
             items.append(f'<item id="c{i}" href="ch{i}.xhtml" media-type="application/xhtml+xml"/>')
