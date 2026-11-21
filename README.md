@@ -6,6 +6,8 @@
 
 章节可逐条改名，也可勾选后使用文字替换、正则替换或编号模板，一次预览并应用。网站封面可用时自动采用，也可从本地选择图片。目录和章标题均使用确认后的名称。
 
+正文中的插图随 EPUB 一起保存，离线阅读时保留原有图文顺序。导出完成会显示已嵌入的图片数量；遇到无法下载的插图，会标明受影响的章节。
+
 ## 安装与更新
 
 从 [GitHub Releases](https://github.com/TiempoSafari/NovelPress/releases/latest) 下载 x64 MSI，双击后选择当前用户可写的安装目录。从开始菜单启动「拾卷 NovelPress」。界面使用 Microsoft Edge WebView2 Runtime。

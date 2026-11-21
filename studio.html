@@ -195,7 +195,11 @@ el('export').onclick=async()=>{
   const res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1],Object.fromEntries([...chosen].map(i=>[i,book.chapters[i].name])));
   if(res.error)throw Error(res.error);
   saved=Boolean(res.path);if(saved)bookProgress(total,total,'已保存 EPUB');
-  msg(saved?'已保存至 '+res.path:'已取消导出。')
+  if(saved){
+   const chapters=[...new Set(res.missing)];
+   const warning=chapters.length?'；'+res.missing.length+' 处插图未能下载（'+chapters.slice(0,3).join('、')+(chapters.length>3?' 等':'')+'）':'';
+   msg('已保存至 '+res.path+(res.images?' · 已嵌入 '+res.images+' 张插图':'')+warning,Boolean(warning))
+  }else msg('已取消导出。')
  }catch(err){msg(err.message,true)}
  finally{stop();busy=false;el('bookMeter').hidden=!saved;el('cancel').hidden=true;sync()}
 };

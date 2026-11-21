@@ -169,10 +169,10 @@ class Studio:
             def report(done, chapter):
                 self._progress = {"kind": "export", "done": done, "chapter": chapter}
 
-            write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"))
+            artwork = write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"))
             check()
             os.replace(tmp, dest)
-            return {"path": str(dest)}
+            return {"path": str(dest), **artwork}
         except InterruptedError:
             return {"cancelled": True}
         except Exception as e:

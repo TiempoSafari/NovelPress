@@ -10,7 +10,8 @@ from xml.sax.saxutils import escape
 
 import site_plugins
 import requests
-from bs4 import BeautifulSoup, UnicodeDammit
+from illustrations import Illustration, ImageArchive, IMAGE_PATH, illustration
+from bs4 import BeautifulSoup, UnicodeDammit, NavigableString, Comment, Tag
 from bs4.dammit import EncodingDetector
 
 CHAPTER = re.compile(r"第\s*[零〇一二两三四五六七八九十百千万两\d０-９廿卅]+\s*[章回节節卷幕篇]|^(?:chapter|part|book)\s+[\divxlcdm]+\b|^(?:序章|楔子|序言|尾声|尾聲|番外|后记|後記|prologue|epilogue)", re.I)
@@ -60,13 +61,51 @@ def meta(doc, *names):
     return ""
 
 
-def lines(node):
+def lines(node, source, base=None):
+    """Preserve paragraph boundaries and the order of mixed text/image runs."""
     for item in node.select(JUNK):
         item.decompose()
-    for tag in node.select("br, p, div, section, h1, h2, h3, h4, li, blockquote"):
+    for tag in node.select("br, p, div, section, h1, h2, h3, h4, li, blockquote, figure, figcaption"):
         tag.insert_before("\n")
         tag.insert_after("\n")
-    return [s for line in node.get_text().splitlines() if (s := " ".join(line.split())) and not NAV.fullmatch(s)]
+    paragraphs, runs, text = [], [], []
+
+    def flush_text():
+        if text:
+            runs.append("".join(text))
+            text.clear()
+
+    def finish_line():
+        flush_text()
+        if any(isinstance(run, Illustration) for run in runs):
+            paragraphs.append(tuple(runs))
+        elif runs:
+            line = " ".join("".join(runs).split())
+            if line and not NAV.fullmatch(line):
+                paragraphs.append(line)
+        runs.clear()
+
+    # Some editors link directly to the image rather than inserting an img.
+    for link in node.select("a[href]"):
+        if not link.find("img") and IMAGE_PATH.search(urlsplit(link["href"]).path):
+            img = BeautifulSoup("", "html.parser").new_tag("img", src=link["href"], alt=link.get_text(strip=True))
+            link.replace_with(img)
+    for child in node.descendants:
+        if isinstance(child, Tag) and child.name == "img":
+            flush_text()
+            runs.append(illustration(child, base or source, source))
+        elif isinstance(child, NavigableString) and not isinstance(child, Comment):
+            for i, segment in enumerate(str(child).split("\n")):
+                if i:
+                    finish_line()
+                text.append(segment)
+    finish_line()
+    return paragraphs
+
+
+def page_base(doc, source):
+    base = doc.select_one("base[href]")
+    return urljoin(source, base["href"]) if base else source
 
 
 def website_cover(doc, base, rule):
@@ -134,7 +173,8 @@ def analyze(url, check=lambda: None, report=lambda pages, count: None):
     return {"title": title, "author": author, "chapters": anchors, "base": base, "adapter": rule["name"], "cover": website_cover(doc, base, rule)}
 
 
-def chapter_text(doc, fragment, name):
+def chapter_text(doc, fragment, name, source):
+    base = page_base(doc, source)
     if fragment:
         from urllib.parse import unquote
         marker = doc.find(id=unquote(fragment)) or doc.find("a", attrs={"name": unquote(fragment)})
@@ -146,21 +186,21 @@ def chapter_text(doc, fragment, name):
         if start.parent and "mw-heading" in start.parent.get("class", []):
             start = start.parent
         if start.name in ("div", "section", "article") and start.find("p"):
-            return [p for p in lines(start) if p != name]
+            return [p for p in lines(start, source, base) if p != name]
         block = BeautifulSoup("<article></article>", "html.parser").article
         for sibling in list(start.next_siblings):
             if getattr(sibling, "name", None) in ("h1", "h2", "h3") or (getattr(sibling, "name", None) and sibling.find(["h1","h2"])):
-                if block.get_text(strip=True):
+                if block.get_text(strip=True) or block.find("img"):
                     break
             block.append(sibling)
     else:
-        block = next((el for sel in BODY.split(",") if (el := doc.select_one(sel)) and el.get_text(strip=True)), None)
+        block = next((el for sel in BODY.split(",") if (el := doc.select_one(sel)) and (el.get_text(strip=True) or el.find("img"))), None)
         if not block:
             paragraphs = doc.select("p")
             block = max((p.parent for p in paragraphs), key=lambda el: sum(len(p.get_text(strip=True)) for p in el.find_all("p", recursive=False)), default=None)
     if not block:
         raise ValueError("未识别到正文，网页可能需要登录或运行脚本。")
-    result = [p for p in lines(block) if p != name]
+    result = [p for p in lines(block, source, base) if p != name]
     if not result:
         raise ValueError("章节正文为空。")
     return result
@@ -175,7 +215,7 @@ def collect_pages(doc, source, fragment, name, check, chapter_urls):
         link = None if fragment else next((a for a in doc.select("a[href]")
             if a.get_text(strip=True) in ("下一页", "下一頁", "本章下一页", "本章下一頁")), None)
         following = urldefrag(urljoin(source, link["href"]))[0] if link else ""
-        result.extend(chapter_text(doc, fragment, name))
+        result.extend(chapter_text(doc, fragment, name, source))
         if not following or following == source or following in chapter_urls:
             return result
         if following in seen or len(seen) >= 80:
@@ -201,11 +241,12 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
     chapter_urls = {urldefrag(ch["url"])[0] for ch in chapters}
     items, spine, links = [], [], []
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as book:
+        images = ImageArchive(book, esj_cookies, check)
         book.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
         book.writestr("META-INF/container.xml", '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
         book.writestr("cover.png", cover)
         book.writestr("cover.xhtml", xhtml(title, '<div style="text-align:center"><img src="cover.png" alt="封面" style="max-width:100%;max-height:95vh"/></div>'))
-        book.writestr("book.css", "body{margin:5%;line-height:1.75}h1{font-size:1.5em}p{text-indent:2em;margin:.5em 0}")
+        book.writestr("book.css", "body{margin:5%;line-height:1.75}h1{font-size:1.5em}p{text-indent:2em;margin:.5em 0}p.art{text-indent:0}img{max-width:100%;height:auto}")
         for i, ch in enumerate(chapters, 1):
             check()
             progress(i - 1, ch["name"])
@@ -214,24 +255,34 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                 if address != cache_url or cached is None:
                     if i > 1:
                         time.sleep(.35)
-                    doc, _ = fetch(address)
+                    doc, source = fetch(address)
                     cache_url, cached = address, str(doc) if fragment else None
                 if cached:
                     doc = BeautifulSoup(cached, "html.parser")
-                paragraphs = site_plugins.paragraphs(doc, rule, lines) if rule else collect_pages(doc, address, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
+                paragraphs = site_plugins.paragraphs(doc, rule, lambda block: lines(block, source, page_base(doc, source))) if rule else collect_pages(doc, source, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
             except InterruptedError:
                 raise
             except Exception as error:
                 raise ValueError(f'《{ch["name"]}》读取失败：{error}') from error
             name = xml(ch["name"])
-            book.writestr(f"ch{i}.xhtml", xhtml(ch["name"], f"<h1>{name}</h1>" + "".join(f"<p>{xml(p)}</p>" for p in paragraphs)))
+            body = [f"<h1>{name}</h1>"]
+            for paragraph in paragraphs:
+                if isinstance(paragraph, str):
+                    body.append(f"<p>{xml(paragraph)}</p>")
+                else:
+                    progress(i - 1, f"{ch['name']} · 正在收录插图")
+                    content = "".join(xml(run) if isinstance(run, str) else images.render(run, ch["name"])
+                                      for run in paragraph)
+                    body.append(f'<p class="art">{content}</p>')
+            book.writestr(f"ch{i}.xhtml", xhtml(ch["name"], "".join(body)))
             items.append(f'<item id="c{i}" href="ch{i}.xhtml" media-type="application/xhtml+xml"/>')
             spine.append(f'<itemref idref="c{i}"/>')
             links.append(f'<li><a href="ch{i}.xhtml">{name}</a></li>')
         progress(len(chapters), "正在生成 EPUB 目录")
         check()
         book.writestr("nav.xhtml", xhtml("目录", '<nav epub:type="toc"><h1>目录</h1><ol>'+ "".join(links) + "</ol></nav>"))
+        items.extend(images.manifest.values())
         modified = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        language = "zh" if re.search(r"[\u3400-\u9fff]", title + chapters[0]["name"] + "".join(paragraphs[:2])) else "und"
+        language = "zh" if re.search(r"[\u3400-\u9fff]", title + chapters[0]["name"] + "".join(p for p in paragraphs[:2] if isinstance(p, str))) else "und"
         book.writestr("book.opf", f'''<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="uid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="uid">urn:uuid:{uid}</dc:identifier><dc:title>{xml(title)}</dc:title><dc:language>{language}</dc:language><dc:creator>{xml(author or "佚名")}</dc:creator><meta property="dcterms:modified">{modified}</meta></metadata><manifest><item id="img" href="cover.png" media-type="image/png" properties="cover-image"/><item id="front" href="cover.xhtml" media-type="application/xhtml+xml"/><item id="css" href="book.css" media-type="text/css"/><item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>{"".join(items)}</manifest><spine><itemref idref="front"/>{"".join(spine)}</spine></package>''')
-
+    return {"images": len(images.manifest), "missing": images.missing}
