@@ -260,7 +260,7 @@ def xhtml(title, body):
     return f'<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>{xml(title)}</title><link rel="stylesheet" href="book.css" type="text/css"/></head><body>{body}</body></html>'
 
 
-def write_book(path, title, author, chapters, cover, progress, check, rule=None):
+def write_book(path, title, author, chapters, cover, progress, check, rule=None, chapter_ready=None):
     cache_url, cached = None, None
     uid = uuid.uuid4()
     chapter_urls = {urldefrag(ch["url"])[0] for ch in chapters}
@@ -295,6 +295,8 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                         if isinstance(run, Illustration):
                             images.prefetch(run)
             prepared.append((i, ch, paragraphs))
+            if chapter_ready:
+                chapter_ready(i, ch["name"])
 
         written = len(prepared)
 

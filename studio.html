@@ -51,6 +51,22 @@ dialog[open],.meter:not([hidden]),#release:not([hidden]),.work,.rows.fresh{anima
 .edge.nw,.edge.se{cursor:nwse-resize}.edge.ne,.edge.sw{cursor:nesw-resize}body.maximized .edge{display:none}
 @media(max-height:680px){.work{gap:10px;padding-top:14px}.origin{padding:10px 14px}.poster{min-height:120px;padding:8px}.poster canvas{max-height:135px;width:auto}.meta{margin-top:12px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+#binding{position:fixed;inset:70px 0 145px;z-index:4;pointer-events:none;display:grid;place-items:center;background:radial-gradient(ellipse at center,#f7f8f4 15%,#f7f8f4ed 43%,transparent 76%);opacity:0;transition:opacity .22s}
+#binding[hidden]{display:none}
+#binding.visible{opacity:1}
+.spread{--leaf:min(17vw,18vh,165px);width:calc(2 * var(--leaf));height:calc(1.4 * var(--leaf));position:relative;perspective:1000px;filter:drop-shadow(3px 11px 8px #23372f32)}
+.leaf,.jacket,.incoming{position:absolute;inset:0 0 0 50%;border-radius:2px 6px 6px 2px}
+.leaf{border:1px solid #ccbfa7;background:linear-gradient(90deg,#c4b79c,#f6efe0 8%,#fff9eb 35%,#f5eddb);box-shadow:0 var(--depth,1px) #d6cbb7,0 calc(var(--depth,1px) + 3px) #2b5143;display:grid;align-content:center;padding:14%;overflow:hidden}
+.leaf::after,.incoming::after{content:"";display:block;height:36%;min-height:30px;background:repeating-linear-gradient(#af9e8040 0 1px,transparent 1px 8px)}
+.jacket{z-index:2;transform-origin:left center;transform-style:preserve-3d;transition:transform .65s cubic-bezier(.2,.72,.22,1)}
+.jacket img,.jacket i{width:100%;height:100%;position:absolute;inset:0;backface-visibility:hidden;border-radius:inherit}
+.jacket i{transform:rotateY(180deg);background:linear-gradient(90deg,#f4ebd8 65%,#e4d8bf 95%,#c2b398);border:1px solid #cfbea0;box-sizing:border-box}
+.visible.open .jacket{transform:rotateY(-177deg)}
+#leafTitle{font:600 clamp(12px,1.5vw,17px)/1.5 SimSun,serif;position:absolute;top:18%;left:14%;right:11%;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.incoming{z-index:3;padding:15% 6% 0;background:linear-gradient(110deg,#eee2cb,#fffbed 48%,#f0e4ce);border:1px solid #d2c6af;box-shadow:2px 4px 7px #48301c22;transform-origin:left bottom}
+#bindCount{position:absolute;top:calc(100% + 22px);width:100%;text-align:center;color:#304d3e;font-variant-numeric:tabular-nums}
+body.binding #cover{visibility:hidden}
+@media(prefers-reduced-motion:reduce){#binding,.jacket{transition:none}}
 </style>
 <header class="appbar">
   <div id="dragTitle" class="pywebview-drag-region"><img alt="" width="32" height="32" draggable="false" src="data:image/x-icon;base64,__APP_ICON__"><strong>拾卷</strong><span>网页小说制书工具</span></div>
@@ -66,6 +82,7 @@ dialog[open],.meter:not([hidden]),#release:not([hidden]),.work,.rows.fresh{anima
 <div id="searchRow"><label class="field" for="nameSearch">查找</label><input type="text" id="nameSearch"></div>
 <label class="field" id="replaceLabel" for="nameReplace">替换为</label><input type="text" id="nameReplace"><p class="hint" id="renameHint"></p>
 <div id="changes" role="status"></div><footer><button id="closeRename">取消</button><button class="primary" id="applyRename">应用</button></footer></dialog>
+<div id="binding" hidden aria-hidden="true"><div class="spread"><div class="leaf"><span id="leafTitle"></span></div><div class="jacket"><img alt=""><i></i></div><strong id="bindCount"></strong></div></div>
 <script>
 const el=id=>document.getElementById(id), ttl=el('title'), auth=el('author'), url=el('url'), cv=el('cover');
 let book=null,busy=false,chosen=new Set(),ready=false,loadedUrl='';
@@ -197,26 +214,87 @@ function poll(read,paint){
  const timer=setInterval(tick,200);
  return ()=>{active=false;clearInterval(timer)}
 }
+function bindBook(total){
+ const scene=el('binding'),spread=scene.querySelector('.spread'),jacket=scene.querySelector('.jacket');
+ const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const coverRect=cv.getBoundingClientRect();
+ scene.hidden=false;
+ scene.querySelector('img').src=cv.toDataURL();
+ el('leafTitle').textContent=ttl.value;
+ el('bindCount').textContent='';
+ spread.style.setProperty('--depth','1px');
+ document.body.classList.add('binding');
+ const dest=jacket.getBoundingClientRect();
+ const offset=()=>translateCover(cv.getBoundingClientRect(),jacket.offsetWidth,jacket.offsetHeight);
+ function translateCover(rect,width,height){
+  const page=scene.querySelector('.leaf').getBoundingClientRect();
+  return 'translate('+(rect.left-page.left)+'px,'+(rect.top-page.top)+'px) scale('+rect.width/width+','+rect.height/height+')';
+ }
+ spread.style.transformOrigin='50% 0';
+ scene.classList.add('visible');
+ const flight=reduced?null:spread.animate([{transform:translateCover(coverRect,dest.width,dest.height)},{transform:'none'}],{duration:480,easing:'cubic-bezier(.22,.75,.25,1)'});
+ let closed=false,last=0;
+ const opening=(flight?flight.finished:Promise.resolve()).then(()=>{if(!closed)scene.classList.add('open')});
+ function update(count,title){
+  if(count<=last||closed)return;
+  const burst=Math.min(count-last,3);
+  last=count;
+  el('leafTitle').textContent=title;
+  el('bindCount').textContent=count+' / '+total+' 章';
+  spread.style.setProperty('--depth',(1+5*count/total)+'px');
+  if(reduced)return;
+  opening.then(()=>{
+   if(closed)return;
+   for(let n=0;n<burst;n++){
+    const sheet=document.createElement('div');
+    sheet.className='incoming';
+    spread.append(sheet);
+    const motion=sheet.animate([
+     {transform:'translate(75%, -70%) rotate(-17deg) rotateY(-42deg)',opacity:0},
+     {transform:'translate(30%, -29%) rotate(-7deg) rotateY(-22deg)',opacity:1,offset:.38},
+     {transform:'none',opacity:1}
+    ],{duration:490,delay:n*55,fill:'both',easing:'cubic-bezier(.2,.62,.25,1)'});
+    motion.onfinish=()=>sheet.remove();
+   }
+  });
+ }
+ return {update,async finish(saved){
+  if(saved)await opening;
+  closed=true;
+  if(saved&&!reduced){
+   await new Promise(resolve=>setTimeout(resolve,390));
+   scene.classList.remove('open');
+   await new Promise(resolve=>setTimeout(resolve,650));
+   await spread.animate([{transform:'none'},{transform:offset()}],{duration:350,easing:'ease-in-out'}).finished;
+  }
+  scene.classList.remove('visible','open');
+  scene.hidden=true;
+  scene.querySelectorAll('.incoming').forEach(node=>node.remove());
+  document.body.classList.remove('binding');
+ }};
+}
 el('export').onclick=async()=>{
- busy=true;sync();const total=chosen.size;
+ busy=true;sync();const total=chosen.size;let binding;
  bookProgress(0,0,'等待选择保存位置');el('cancel').hidden=false;msg('');
  const stop=poll(()=>pywebview.api.progress(),v=>{
   if(v.kind!=='export'||!v.chapter)return;
-  bookProgress(v.done,total,v.done===total?'正在写入电子书':'正在下载章节');
+  binding??=bindBook(total);
+  binding.update(v.collected,v.last_title);
+  bookProgress(v.collected,total,v.done===total?'正在写入电子书':'正在下载章节');
   msg(v.chapter)
  });
  let saved=false;
  try{
   const res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1],Object.fromEntries([...chosen].map(i=>[i,book.chapters[i].name])));
   if(res.error)throw Error(res.error);
-  saved=Boolean(res.path);if(saved)bookProgress(total,total,'已保存 EPUB');
+  saved=Boolean(res.path);if(saved){binding??=bindBook(total);binding.update(total,book.chapters[Math.max(...chosen)].name);bookProgress(total,total,'已保存 EPUB')}
   if(saved){
    const chapters=[...new Set(res.missing)];
    const warning=chapters.length?'；'+res.missing.length+' 处插图未能下载（'+chapters.slice(0,3).join('、')+(chapters.length>3?' 等':'')+'）':'';
    msg('已保存至 '+res.path+(res.images?' · 已嵌入 '+res.images+' 张插图':'')+warning,Boolean(warning))
   }else msg('已取消导出。')
  }catch(err){msg(err.message,true)}
- finally{stop();busy=false;el('bookMeter').hidden=!saved;el('cancel').hidden=true;sync()}
+ finally{stop();el('cancel').hidden=true;try{await binding?.finish(saved)}finally{busy=false;el('bookMeter').hidden=!saved;sync()}}
 };
 let checking=false, downloading=false, newVersion='';
 async function checkUpdates(manual){

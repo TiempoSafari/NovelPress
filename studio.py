@@ -205,10 +205,19 @@ class Studio:
                 if self._stop.is_set():
                     raise InterruptedError()
 
-            def report(done, chapter):
-                self._progress = {"kind": "export", "done": done, "chapter": chapter}
+            collected = 0
+            last_title = ""
 
-            artwork = write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"))
+            def chapter_ready(count, name):
+                nonlocal collected, last_title
+                collected, last_title = count, name
+                report(count, f"已收录《{name}》")
+
+            def report(done, chapter):
+                self._progress = {"kind": "export", "done": done, "chapter": chapter,
+                                  "collected": collected, "last_title": last_title}
+
+            artwork = write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"), chapter_ready)
             check()
             os.replace(tmp, dest)
             return {"path": str(dest), **artwork}
