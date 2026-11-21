@@ -208,13 +208,14 @@ async function checkUpdates(manual){
  if(checking||downloading)return;
  checking=true;el('update').disabled=true;
  try{const info=await pywebview.api.check_updates();if(manual||info.version){
- newVersion=info.version||'';el('releaseText').textContent=info.message;el('getRelease').hidden=!newVersion;el('release').hidden=false}}
+ newVersion=info.version||'';el('getRelease').textContent=info.restart?'更新并重启':'下载并打开安装向导';el('releaseText').textContent=info.message;el('getRelease').hidden=!newVersion;el('release').hidden=false}}
  finally{checking=false;el('update').disabled=false}
 }
 el('update').onclick=()=>checkUpdates(true);
 el('dismissRelease').onclick=()=>el('release').hidden=true;
 el('getRelease').onclick=async()=>{
  if(busy||downloading)return;
+ if(book&&el('getRelease').textContent==='更新并重启'&&!confirm('更新将关闭当前制书工作台。确认已导出需要保留的编辑，并重启拾卷？'))return;
  busy=downloading=true;sync();
  for(const k of ['update','getRelease','dismissRelease'])el(k).disabled=true;
  const bar=el('releaseBar');bar.removeAttribute('value');el('releaseNumbers').textContent='';

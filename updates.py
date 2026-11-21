@@ -4,7 +4,11 @@ import re
 import hashlib
 import os
 import subprocess
+import sys
+import shutil
+import winreg
 import tempfile
+import time
 
 import requests
 
@@ -66,6 +70,42 @@ def download(version, report=lambda received, total, phase: None):
             raise ValueError("安装包校验失败，请重试。")
         target = folder / asset["name"]
         os.replace(temp, target)
-        subprocess.Popen([str(Path(os.environ["SystemRoot"]) / "System32" / "msiexec.exe"), "/i", str(target)])
+        return target, digest[7:]
     finally:
         temp.unlink(missing_ok=True)
+
+def installed_application():
+    if getattr(sys, "frozen", False):
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\TiempoSafari\NovelPress") as key:
+                folder = Path(winreg.QueryValueEx(key, "InstallLocation")[0])
+            exe = Path(sys.executable).resolve()
+            if (folder / "NovelPress.exe").resolve() == exe and exe.with_name("UpdateRunner.exe").is_file():
+                return exe
+        except OSError:
+            pass
+    return None
+
+
+def apply(package, digest, exe):
+    # Windows must be able to replace every file in the installation directory.
+    # Start a copy in the download cache so the helper does not lock itself.
+    with tempfile.NamedTemporaryFile(dir=package.parent, suffix=".exe", prefix="updater-", delete=False) as temp:
+        helper = Path(temp.name)
+    try:
+        shutil.copyfile(exe.with_name("UpdateRunner.exe"), helper)
+        subprocess.Popen([str(helper), str(package), digest, str(exe)], cwd=package.parent)
+    except Exception:
+        helper.unlink(missing_ok=True)
+        raise
+
+
+def cleanup_helpers():
+    folder = Path(os.environ["LOCALAPPDATA"]) / "NovelPress" / "updates"
+    for path in folder.glob("updater-*.exe"):
+        try:
+            if time.time() - path.stat().st_mtime > 3600:
+                path.unlink()
+        except OSError:
+            pass
+

@@ -58,7 +58,9 @@ class Studio:
 
     def check_updates(self):
         try:
-            return updates.latest()
+            info = updates.latest()
+            info["restart"] = updates.installed_application() is not None
+            return info
         except Exception:
             return {"message": "暂时无法连接 GitHub，请稍后重试。"}
 
@@ -69,8 +71,15 @@ class Studio:
             def report(received, total, phase):
                 self._update_progress = {"bytes": received, "total": total, "phase": phase}
             report(0, 0, "正在查询版本")
-            updates.download(version, report)
-            return "安装向导已打开，请保存当前操作并关闭拾卷后继续。"
+            package, digest = updates.download(version, report)
+            exe = updates.installed_application()
+            if exe is None:
+                os.startfile(package)
+                return "已打开安装向导。"
+            updates.apply(package, digest, exe)
+            for window in reversed(webview.windows.copy()):
+                window.destroy()
+            return "正在重启拾卷…"
         except Exception as e:
             return f"未能启动更新：{e}"
         finally:
@@ -186,6 +195,7 @@ class Studio:
 if __name__ == "__main__":
     from ctypes import windll
     windll.shell32.SetCurrentProcessExplicitAppUserModelID("NovelPress.Studio")
+    updates.cleanup_helpers()
     page = Path(__file__).with_name("studio.html").read_text(encoding="utf-8-sig")
     icon = Path(__file__).with_name("book.ico")
     page = page.replace("__APP_ICON__", base64.b64encode(icon.read_bytes()).decode("ascii"))

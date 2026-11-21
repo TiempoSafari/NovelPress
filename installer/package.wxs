@@ -11,6 +11,7 @@
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="UserPrograms" Name="Programs"><Directory Id="INSTALLFOLDER" Name="NovelPress">
         <Component Id="Application" Guid="A2ED32B7-8C8D-4EE5-A471-CAB2AB3167AC">
+          <File Id="UpdateRunner" Source="artifacts/staging/UpdateRunner.exe"/>
           <File Id="AppExe" Source="artifacts/staging/NovelPress.exe"/>
           <Shortcut Id="StartMenu" Directory="ProgramMenuFolder" Name="拾卷 NovelPress" Target="[#AppExe]" WorkingDirectory="INSTALLFOLDER" Icon="BookIcon"/>
           <RegistryValue Root="HKCU" Key="Software\TiempoSafari\NovelPress" Name="InstallLocation" Value="[INSTALLFOLDER]" Type="string" KeyPath="yes"/>

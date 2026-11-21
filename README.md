@@ -12,7 +12,7 @@
 
 从 [GitHub Releases](https://github.com/TiempoSafari/NovelPress/releases/latest) 下载 x64 MSI，双击后选择当前用户可写的安装目录。从开始菜单启动「拾卷 NovelPress」。界面使用 Microsoft Edge WebView2 Runtime。
 
-启动时和持续运行期间每 12 小时检查一次 GitHub 稳定版。也可以点「检查更新」。发现新版后，在提示中点「下载并打开安装向导」，拾卷将对照 GitHub 提供的大小与 SHA-256 校验下载文件，然后打开 Windows 安装向导。关闭拾卷后继续升级。升级会沿用安装位置。用户安装的插件存放在 %LOCALAPPDATA%\NovelPress\plugins，优先于随安装包提供的规则。原便携版的自定义 JSON 可从「安装插件」重新导入。
+启动时和持续运行期间每 12 小时检查一次 GitHub 稳定版。也可以点「检查更新」。安装版发现新版后，点「更新并重启」，下载和校验完成后会自动退出、静默升级并在原目录重开。更新失败时会显示原因和日志位置。便携版可下载 MSI 转为安装版。用户安装的插件存放在 %LOCALAPPDATA%\NovelPress\plugins，优先于随安装包提供的规则。原便携版的自定义 JSON 可从「安装插件」重新导入。
 
 ## 开发和发布
 
