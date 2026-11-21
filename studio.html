@@ -2,16 +2,43 @@
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>拾卷</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f7f8f4;color:#23372f;font:14px/1.5 "Microsoft YaHei UI","Microsoft YaHei",sans-serif}header{height:68px;padding:0 32px;display:flex;align-items:center;gap:13px;background:#fcfcf8;border-bottom:1px solid #d9ded6}header strong{font:700 27px SimSun,serif;letter-spacing:.1em}header span{border-left:1px solid #cbd2ca;padding-left:15px;color:#536559}.mark{width:31px;height:31px;background:#214f42;color:white;display:grid;place-items:center;border-radius:3px;font:21px SimSun,serif}.shell{display:grid;grid-template-columns:275px minmax(0,1fr);min-height:calc(100vh - 68px)}aside{padding:25px 26px;background:#edf1e9;border-right:1px solid #d9ded6}h1,h2,p{margin:0}h1{font:700 28px/1.5 SimSun,serif}h2{font-size:16px;font-weight:600}.poster{background:#dbe3d8;display:grid;place-items:center;padding:20px 15px;margin:14px 0 18px;border-radius:4px}canvas{width:146px;max-width:100%;height:auto;box-shadow:4px 5px 0 #bbc8bb}.field{display:block;margin:12px 0 5px;color:#425449;font-size:13px}input[type=text],input[type=url]{width:100%;border:1px solid #c1ccc1;border-radius:5px;background:#fffefa;color:#23372f;font:inherit;padding:9px 11px}input:focus,button:focus-visible{outline:2px solid #387760;outline-offset:2px}input[type=checkbox]{accent-color:#28614b;width:16px;height:16px}.meta{margin-top:24px;border-top:1px solid #cdd5ca;padding-top:11px;color:#506156;display:flex;justify-content:space-between;font-size:12px}.meta b{font-family:Georgia,serif;letter-spacing:.1em}.work{padding:24px clamp(22px,3vw,45px);display:flex;flex-direction:column;gap:22px;min-width:0}.hint,.small{color:#56665a;font-size:13px}.origin{background:#fffefa;padding:18px 20px;border:1px solid #d5dcd1;border-radius:6px}.origin label{font-weight:600}.urlrow,.actions,.bar,.bottom{display:flex;align-items:center;gap:9px}.urlrow{margin-top:9px}.urlrow input{min-width:0}.hint{margin-top:8px}.example{background:none;border:0;border-radius:0;padding:0 2px;color:#28634a;text-decoration:underline;text-underline-offset:3px;font:inherit}button{cursor:pointer;white-space:nowrap;border:1px solid #bac7bd;background:#fffefa;border-radius:5px;color:#263c31;padding:9px 15px;font:600 14px "Microsoft YaHei UI",sans-serif}button:hover{background:#e8eee7}button:disabled{cursor:default;opacity:.53}.primary{background:#225442;border-color:#225442;color:white}.primary:hover{background:#173e30}.bar,.bottom{justify-content:space-between}.bar{padding-bottom:12px;border-bottom:1px solid #cfd8ce}.plain{border:0;background:none;padding:5px 7px;font-size:13px;color:#345d49}.toc{flex:1;display:flex;flex-direction:column;min-height:150px}.rows{flex:1;max-height:clamp(180px,40vh,600px);overflow:auto}.row{display:flex;gap:12px;align-items:center;min-height:41px;border-bottom:1px solid #dce2d7;padding:5px;cursor:pointer}.row span{overflow-wrap:anywhere}.num{font:13px Georgia;color:#627365}.empty{display:grid;place-content:center;justify-items:center;text-align:center;min-height:164px;height:100%;gap:5px}.empty strong{font-size:15px}.empty svg{margin-bottom:6px}.bottom{border-top:1px solid #cad4c9;padding-top:15px}.status{overflow-wrap:anywhere;color:#355341;font-size:13px;white-space:pre-line}.error{color:#993a29}progress{width:100%;height:7px;accent-color:#326a51}.actions{flex-shrink:0}button[hidden],progress[hidden]{display:none}@media(max-width:850px){.shell{grid-template-columns:215px minmax(0,1fr)}aside{padding:21px 16px}.work{padding:20px;gap:17px}.origin{padding:14px}.poster{padding:14px}.urlrow button{padding:10px}.bottom{align-items:flex-end}}
+
+dialog{width:min(620px,90vw);border:1px solid #bcc9bd;border-radius:8px;padding:22px;background:#fbfcf8;color:#23372f}
+dialog::backdrop{background:#172b224d}dialog select{padding:7px;font:inherit}dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}
+#changes{max-height:180px;overflow:auto;margin:12px 0;color:#385244;white-space:pre-wrap;overflow-wrap:anywhere}
+.row label{display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer}.row button{font-size:12px}.poster canvas{max-height:240px;object-fit:contain}
+.coverTools{display:flex;flex-wrap:wrap;align-items:center;gap:4px}.coverTools button{font-size:12px}#coverLabel{display:block;color:#536559;font-size:12px}
 </style>
-<header><div class="mark" aria-hidden="true">卷</div><strong>拾卷</strong><span>网页小说制书工具</span><button class="plain" style="margin-left:auto" id="update" disabled>检查更新</button><button class="plain" id="plugins">打开插件目录</button><button id="install" disabled>安装插件</button></header>
-<div id="release" hidden role="status" style="padding:8px 32px;background:#e7ece3"><span id="releaseText"></span> <button id="getRelease" hidden>下载并打开安装向导</button> <button class="plain" id="dismissRelease">关闭</button></div><div class="shell"><aside><h2>书籍预览</h2><div class="poster"><canvas id="cover" width="540" height="756" aria-label="电子书封面预览"></canvas></div><label class="field" for="title">书名</label><input type="text" id="title" maxlength="180" placeholder="解析后自动填写"><label class="field" for="author">作者</label><input type="text" id="author" maxlength="120" placeholder="可选"><div class="meta"><span>电子书格式</span><b>EPUB 3</b></div></aside>
-<main class="work"><h1>制书工作台</h1><form class="origin" id="form"><label for="url">小说网页</label><div class="urlrow"><input type="url" id="url" placeholder="https://…" required><button class="primary" id="inspect" disabled>解析网页</button></div><p class="hint">粘贴目录或正文网址，也可以<button type="button" class="example" id="example">试用《呐喊》</button>。</p><div id="unsupported" hidden role="alert" style="margin-top:12px"><strong id="reason"></strong> <button type="button" id="installHere">安装对应插件…</button></div></form>
-<section class="toc"><div class="bar"><h2>章节目录</h2><div><button class="plain" id="all" disabled>全选</button><button class="plain" id="none" disabled>清空选择</button></div></div><div class="rows" id="rows"><div class="empty"><svg width="58" height="35" viewBox="0 0 58 35" fill="none" stroke="#6b8776" stroke-width="1.7" aria-hidden="true"><path d="M3 6q14-4 25 3 12-7 26-3v23q-14-4-26 2-12-6-25-2zM28 9v21M7 2q11-2 20 3m5 0q10-5 19-3"/></svg><strong>等待导入章节</strong><span class="small">解析网页后，在这里选择要收录的章节。</span></div></div></section>
+<header><img width="36" height="36" alt="" src="data:image/x-icon;base64,__APP_ICON__"><strong>拾卷</strong><span>网页小说制书工具</span><button class="plain" style="margin-left:auto" id="update" disabled>检查更新</button><button class="plain" id="plugins">打开插件目录</button><button id="install" disabled>安装插件</button></header>
+<div id="release" hidden role="status" style="padding:8px 32px;background:#e7ece3"><span id="releaseText"></span> <button id="getRelease" hidden>下载并打开安装向导</button> <button class="plain" id="dismissRelease">关闭</button></div><div class="shell"><aside><h2>书籍预览</h2><div class="poster"><canvas id="cover" width="540" height="756" aria-label="电子书封面预览"></canvas></div><span id="coverLabel">排版封面</span><div class="coverTools"><button class="plain" id="uploadCover">选择图片…</button><button class="plain" id="resetCover" hidden>恢复默认</button></div><input hidden type="file" id="imageFile" accept="image/jpeg,image/png,image/webp"><label class="field" for="title">书名</label><input type="text" id="title" maxlength="180" placeholder="解析后自动填写"><label class="field" for="author">作者</label><input type="text" id="author" maxlength="120" placeholder="可选"><div class="meta"><span>电子书格式</span><b>EPUB 3</b></div></aside>
+<main class="work"><h1>制书工作台</h1><form class="origin" id="form"><label for="url">小说网页</label><div class="urlrow"><input type="url" id="url" placeholder="https://…" required><button class="primary" id="inspect" disabled>解析网页</button></div><p class="hint">粘贴目录或正文网址，也可以<button type="button" class="example" id="example">试用《呐喊》</button>。 <button class="example" type="button" id="esjLogin" hidden>登录 ESJ Zone</button></p><div id="unsupported" hidden role="alert" style="margin-top:12px"><strong id="reason"></strong> <button type="button" id="installHere">安装对应插件…</button></div></form>
+<section class="toc"><div class="bar"><h2>章节目录</h2><div><button class="plain" id="renameMany" disabled>批量改名…</button><button class="plain" id="all" disabled>全选</button><button class="plain" id="none" disabled>清空选择</button></div></div><div class="rows" id="rows"><div class="empty"><svg width="58" height="35" viewBox="0 0 58 35" fill="none" stroke="#6b8776" stroke-width="1.7" aria-hidden="true"><path d="M3 6q14-4 25 3 12-7 26-3v23q-14-4-26 2-12-6-25-2zM28 9v21M7 2q11-2 20 3m5 0q10-5 19-3"/></svg><strong>等待导入章节</strong><span class="small">解析网页后，在这里选择要收录的章节。</span></div></div></section>
 <progress id="progress" hidden></progress><div class="bottom"><div><strong id="count">已选 0 章</strong><div class="status" role="status" id="status"></div></div><div class="actions"><button id="cancel" hidden>取消</button><button id="export" class="primary" disabled>导出 EPUB ↓</button></div></div></main></div>
+<dialog id="renameBox"><h2 id="renameHeading"></h2>
+<div id="modeRow"><label class="field" for="renameMode">改名方式</label><select id="renameMode"><option value="text">文字替换</option><option value="regex">正则替换</option><option value="format">按模板命名</option></select></div>
+<div id="searchRow"><label class="field" for="nameSearch">查找</label><input type="text" id="nameSearch"></div>
+<label class="field" id="replaceLabel" for="nameReplace">替换为</label><input type="text" id="nameReplace"><p class="hint" id="renameHint"></p>
+<div id="changes" role="status"></div><footer><button id="closeRename">取消</button><button class="primary" id="applyRename">应用</button></footer></dialog>
 <script>
 const el=id=>document.getElementById(id), ttl=el('title'), auth=el('author'), url=el('url'), cv=el('cover');
 let book=null,busy=false,chosen=new Set(),ready=false,loadedUrl='';
+let coverImage=null, siteImage=null;
+async function imageFrom(src){
+ const image=new Image();image.src=src;await image.decode();
+ if(!image.naturalWidth||!image.naturalHeight)throw Error('无法读取封面图片。');
+ return image;
+}
+function setCover(image,label){
+ coverImage=image;el('coverLabel').textContent=label;el('resetCover').hidden=image===siteImage;
+ cover();
+}
 function cover(){
+ if(coverImage){
+  const ratio=Math.min(1,1600/Math.max(coverImage.naturalWidth,coverImage.naturalHeight));
+  cv.width=Math.max(1,Math.round(coverImage.naturalWidth*ratio));cv.height=Math.max(1,Math.round(coverImage.naturalHeight*ratio));
+  cv.getContext('2d').drawImage(coverImage,0,0,cv.width,cv.height);return;
+ }
+ cv.width=540;cv.height=756;
  const c=cv.getContext('2d'),w=cv.width,h=cv.height;c.fillStyle='#193f35';c.fillRect(0,0,w,h);
  c.strokeStyle='#90aa89';c.lineWidth=2;c.strokeRect(20,18,w-38,h-36);
  c.fillStyle='#112f27';c.fillRect(0,0,12,h);c.save();c.beginPath();c.rect(23,23,494,709);c.clip();
@@ -21,15 +48,71 @@ function cover(){
  for(const ch of letters){if(c.measureText(words+ch).width>422){c.fillText(words,50,y);words='';y+=size*1.23;if(y>285){words='…';break}}words+=ch}c.fillText(words,50,y);
  c.fillStyle='#d4dfc6';c.font='24px SimSun,serif';c.fillText(auth.value.trim()||'佚名',52,Math.min(y+65,363),405);
 }
+el('uploadCover').onclick=()=>el('imageFile').click();
+el('resetCover').onclick=()=>setCover(siteImage,siteImage?'网站封面':'排版封面');
+el('imageFile').onchange=async()=>{
+ const input=el('imageFile'),file=input.files[0];input.value='';if(!file)return;
+ if(file.size>12*1024*1024){msg('请选择小于 12 MB 的封面图片。',true);return}
+ const objectUrl=URL.createObjectURL(file);busy=true;sync();
+ try{setCover(await imageFrom(objectUrl),'自选封面')}catch{msg('图片无法读取，请选择 JPG、PNG 或 WebP。',true)}
+ finally{URL.revokeObjectURL(objectUrl);busy=false;sync()}
+};
+el('esjLogin').onclick=async()=>{try{await pywebview.api.esj_login()}catch(e){msg(e.message,true)}};
 function msg(s='',error=false){el('status').textContent=s;el('status').classList.toggle('error',error)}
 const initialRows=el("rows").innerHTML;
 function sync(){el("install").disabled=busy||!ready;el("installHere").disabled=busy||!ready;let valid=book&&url.value.trim()===loadedUrl;
+ let esj=false;try{esj=['esjzone.cc','www.esjzone.cc'].includes(new URL(url.value).hostname)}catch{}
+ el('esjLogin').hidden=!esj;el('esjLogin').disabled=busy||!ready;
+ el('renameMany').disabled=busy||!valid||!chosen.size;
+ el('uploadCover').disabled=busy||!valid;el('resetCover').disabled=busy||!valid;
  el('count').textContent=book?'已选 '+chosen.size+' / '+book.chapters.length+' 章':'已选 0 章';
  el('export').disabled=busy||!valid||!chosen.size||!ttl.value.trim();el('inspect').disabled=busy||!ready;
  for(const key of ['all','none'])el(key).disabled=busy||!valid;
  el('example').disabled=busy||!ready;for(const box of [ttl,auth,url])box.disabled=busy;el('rows').inert=busy||!valid;
 }
-function render(){let frag=document.createDocumentFragment();book.chapters.forEach((ch,i)=>{let row=document.createElement('label');row.className='row';let cb=document.createElement('input');cb.type='checkbox';cb.checked=chosen.has(i);cb.onchange=()=>{cb.checked?chosen.add(i):chosen.delete(i);sync()};let no=document.createElement('small');no.className='num';no.textContent=String(i+1).padStart(2,'0');let name=document.createElement('span');name.textContent=ch.name;row.append(cb,no,name);frag.append(row)});el('rows').replaceChildren(frag);sync()}
+function render(){
+ const frag=document.createDocumentFragment();
+ book.chapters.forEach((ch,i)=>{
+  const row=document.createElement('div'),label=document.createElement('label'),cb=document.createElement('input');
+  row.className='row';cb.type='checkbox';cb.checked=chosen.has(i);
+  cb.onchange=()=>{cb.checked?chosen.add(i):chosen.delete(i);sync()};
+  const no=document.createElement('small'),name=document.createElement('span'),edit=document.createElement('button');
+  no.className='num';no.textContent=String(i+1).padStart(2,'0');name.textContent=ch.name;
+  edit.className='plain';edit.textContent='改名';edit.onclick=()=>openRename(i);
+  label.append(cb,no,name);row.append(label,edit);frag.append(row)
+ });el('rows').replaceChildren(frag);sync()
+}
+let editIndex=null, planned=[];
+function openRename(index){
+ editIndex=index;const single=index!==null;
+ el('renameHeading').textContent=single?'修改章节名':'批量改名 · 已选 '+chosen.size+' 章';
+ el('modeRow').hidden=single;el('nameSearch').value='';el('renameMode').value='text';
+ el('nameReplace').value=single?book.chapters[index].name:'';
+ previewNames();el('renameBox').showModal();(single?el('nameReplace'):el('nameSearch')).focus()
+}
+function previewNames(){
+ const single=editIndex!==null,mode=el('renameMode').value,find=el('nameSearch').value,repl=el('nameReplace').value;
+ el('searchRow').hidden=single||mode==='format';el('replaceLabel').textContent=single?'新章节名':mode==='format'?'命名模板':'替换为';
+ el('renameHint').textContent=single?'':mode==='regex'?'使用 JavaScript 正则表达式，替换中可用 $1、$2 引用分组。':mode==='format'?'可用 {n} 表示所选顺序，{title} 表示当前标题。例如：第{n}章 {title}':'查找内容会在所选章节名中全部替换。';
+ planned=[];let preview='';
+ try{
+  if(!single&&mode!=='format'&&!find)throw Error('输入要查找的内容。');
+  const regex=!single&&mode==='regex'?new RegExp(find,'g'):null;
+  const ids=single?[editIndex]:[...chosen].sort((a,b)=>a-b);
+  ids.forEach((id,n)=>{
+   const before=book.chapters[id].name;
+   const after=(single?repl:regex?before.replace(regex,repl):mode==='format'?repl.replace(/\{(n|title)\}/g,(_,key)=>key==='n'?String(n+1):before):before.split(find).join(repl)).trim();
+   if(!after)throw Error('结果包含空标题，请调整后再应用。');
+   if(before!==after)planned.push({id,before,after})
+  });
+  preview=planned.length?'将修改 '+planned.length+' 章\n'+planned.slice(0,30).map(p=>p.before+' → '+p.after).join('\n')+(planned.length>30?'\n仅预览前 30 项。':''):'没有变化。';
+ }catch(e){planned=[];preview=e.message}
+ el('changes').textContent=preview;el('applyRename').disabled=!planned.length
+}
+el('renameMany').onclick=()=>openRename(null);
+for(const key of ['nameSearch','nameReplace','renameMode'])el(key).oninput=previewNames;
+el('applyRename').onclick=()=>{for(const {id,after} of planned)book.chapters[id].name=after;render();el('renameBox').close()};
+el('closeRename').onclick=()=>el('renameBox').close();
 for(const box of [ttl,auth])box.oninput=()=>{cover();sync()};url.oninput=()=>{el('unsupported').hidden=true;msg(book&&url.value.trim()!==loadedUrl?'网址已更改，请重新解析。':'');sync()};
 async function installPlugin(){
  if(busy||!ready)return;
@@ -41,12 +124,12 @@ async function installPlugin(){
 }
 el('install').onclick=installPlugin;el('installHere').onclick=installPlugin;
 el('plugins').onclick=async()=>{try{await pywebview.api.open_plugins()}catch(err){msg(err.message,true)}};
-el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';cover();el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((_,i)=>i));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el('cancel').hidden=true;busy=false;sync()}};
+el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((_,i)=>i));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el('cancel').hidden=true;busy=false;sync()}};
 el('example').onclick=()=>{url.value='https://zh.wikisource.org/wiki/呐喊';el('form').requestSubmit()};
 el('all').onclick=()=>{chosen=new Set(book.chapters.map((_,i)=>i));render()};el('none').onclick=()=>{chosen.clear();render()};
 el('cancel').onclick=async()=>{await pywebview.api.cancel();msg('正在取消…')};
 el('export').onclick=async()=>{busy=true;sync();const p=el('progress');p.hidden=false;p.value=0;p.max=chosen.size;el('cancel').hidden=false;msg('选择保存位置…');let timer=setInterval(async()=>{try{let v=await pywebview.api.progress();if(busy&&v.chapter){p.value=v.done;msg('正在收录 · '+v.chapter)}}catch{}},400);
- try{let res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1]);if(res.error)throw Error(res.error);msg(res.path?'已保存至 '+res.path:'已取消导出。')}catch(err){msg(err.message,true)}finally{clearInterval(timer);busy=false;p.hidden=true;el('cancel').hidden=true;sync()}};
+ try{let res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1],Object.fromEntries([...chosen].map(i=>[i,book.chapters[i].name])));if(res.error)throw Error(res.error);msg(res.path?'已保存至 '+res.path:'已取消导出。')}catch(err){msg(err.message,true)}finally{clearInterval(timer);busy=false;p.hidden=true;el('cancel').hidden=true;sync()}};
 let checking=false, newVersion='';
 async function checkUpdates(manual){
  if(checking)return;

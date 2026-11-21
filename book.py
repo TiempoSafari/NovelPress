@@ -1,4 +1,5 @@
 """网页解析与 EPUB 3 打包。"""
+import base64
 import re
 import time
 import uuid
@@ -18,10 +19,14 @@ BODY = "#chaptercontent,#chapterContent,#chapter-content,#nr1,.chapter-content,.
 JUNK = "script,style,noscript,nav,header,footer,aside,form,iframe,button,[hidden],.advertisement,.ads,.navigation,.mw-editsection,.noprint,.ws-noexport,.ws-pagenum,.ws-header,.licenseContainer"
 
 
+# A session explicitly opened in the ESJ login window, kept only for this run.
+esj_cookies = requests.cookies.RequestsCookieJar()
+
+
 def fetch(url):
     if urlsplit(url).scheme not in ("https", "http") or not urlsplit(url).hostname:
         raise ValueError("请输入以 https:// 或 http:// 开头的网页地址。")
-    with requests.get(url, headers={"User-Agent": "NovelPress/1.0 (personal EPUB reader)"}, timeout=(8, 16), stream=True) as response:
+    with requests.get(url, cookies=esj_cookies if site_plugins.hostname(url) == "esjzone.cc" else None, headers={"User-Agent": "NovelPress/1.0 (personal EPUB reader)"}, timeout=(8, 16), stream=True) as response:
         response.raise_for_status()
         kind = response.headers.get("Content-Type", "").lower()
         if kind and not any(k in kind for k in ("html", "text/plain", "octet-stream")):
@@ -64,6 +69,33 @@ def lines(node):
     return [s for line in node.get_text().splitlines() if (s := " ".join(line.split())) and not NAV.fullmatch(s)]
 
 
+def website_cover(doc, base, rule):
+    node = doc.select_one(rule["cover"]) if rule.get("cover") else None
+    src = (node.get("data-src") or node.get("src") or node.get("href")) if node else None
+    src = src or meta(doc, "og:image", "twitter:image")
+    if not src:
+        return ""
+    address = urljoin(base, src)
+    if urlsplit(address).scheme not in ("http", "https"):
+        return ""
+    try:
+        with requests.get(address, headers={"Referer": base}, stream=True, timeout=(5, 12)) as reply:
+            reply.raise_for_status()
+            data = bytearray()
+            for block in reply.iter_content(65536):
+                data.extend(block)
+                if len(data) > 12 * 1024 * 1024:
+                    return ""
+            if data.startswith(b"\x89PNG"): mime = "png"
+            elif data.startswith(b"\xff\xd8"): mime = "jpeg"
+            elif data[:4] == b"RIFF" and data[8:12] == b"WEBP": mime = "webp"
+            elif data[:3] == b"GIF": mime = "gif"
+            else: return ""
+            return f"data:image/{mime};base64," + base64.b64encode(data).decode("ascii")
+    except requests.RequestException:
+        return ""
+
+
 def analyze(url, check=lambda: None, report=lambda pages, count: None):
     url = url.strip()
     rule = site_plugins.load(url)
@@ -71,7 +103,11 @@ def analyze(url, check=lambda: None, report=lambda pages, count: None):
     if site_plugins.hostname(url) != site_plugins.hostname(base):
         rule = site_plugins.load(base)
     if rule.get("parser") != "wikimedia":
-        return site_plugins.catalog(doc, base, rule, fetch, check, report)
+        if site_plugins.hostname(base) == "esjzone.cc" and "/detail/" in base and not doc.select_one("#chapterList"):
+            raise ValueError("ESJ 未返回作品目录。可登录 ESJ 后重新解析，或确认该作品仍可访问。")
+        result = site_plugins.catalog(doc, base, rule, fetch, check, report)
+        result["cover"] = website_cover(doc, base, rule)
+        return result
     heading = doc.find("h1") or doc.title
     title = meta(doc, "og:novel:book_name", "og:title") or (heading.get_text(strip=True) if heading else "网页选集")
     author = meta(doc, "og:novel:author", "author")
@@ -95,7 +131,7 @@ def analyze(url, check=lambda: None, report=lambda pages, count: None):
         anchors.append({"name": name, "url": dest})
     if not anchors:
         anchors = [{"name": title, "url": base}]
-    return {"title": title, "author": author, "chapters": anchors, "base": base, "adapter": rule["name"]}
+    return {"title": title, "author": author, "chapters": anchors, "base": base, "adapter": rule["name"], "cover": website_cover(doc, base, rule)}
 
 
 def chapter_text(doc, fragment, name):
@@ -182,7 +218,7 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                     cache_url, cached = address, str(doc) if fragment else None
                 if cached:
                     doc = BeautifulSoup(cached, "html.parser")
-                paragraphs = site_plugins.paragraphs(doc, rule, lines) if rule else collect_pages(doc, address, fragment, ch["name"], check, chapter_urls)
+                paragraphs = site_plugins.paragraphs(doc, rule, lines) if rule else collect_pages(doc, address, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
             except InterruptedError:
                 raise
             except Exception as error:

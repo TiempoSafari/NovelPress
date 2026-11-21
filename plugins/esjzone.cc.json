@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "name": "ESJ Zone",
+  "catalog": "#chapterList",
+  "title": ".book-detail h2",
+  "links": "#chapterList a[href*='/forum/']",
+  "chapter_title": ".single-post-meta ~ h2",
+  "author": ".book-detail li:has(strong:-soup-contains('作者')) a",
+  "cover": ".product-gallery img",
+  "body": ".forum-content"
+}

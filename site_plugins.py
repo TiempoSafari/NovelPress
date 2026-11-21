@@ -48,7 +48,7 @@ def validate(content, filename):
         for key in ("catalog", "title", "links", "chapter_title", "body"):
             if not isinstance(rule.get(key), str) or not rule[key].strip():
                 raise ValueError(f"缺少字段 {key}")
-        for key in ("catalog", "title", "links", "older", "chapter_title", "body", "remove", "author"):
+        for key in ("catalog", "title", "links", "older", "chapter_title", "body", "remove", "author", "cover"):
             if rule.get(key):
                 soupsieve.compile(rule[key])
         if rule.get("first_page_suffix"):

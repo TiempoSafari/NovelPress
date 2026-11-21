@@ -5,6 +5,7 @@ import tempfile
 import threading
 from pathlib import Path
 
+import book
 import updates
 import site_plugins
 import webview
@@ -13,6 +14,7 @@ from book import analyze, write_book
 
 class Studio:
     def __init__(self):
+        self._login = None
         self._book = None
         self._stop = threading.Event()
         self._lock = threading.Lock()
@@ -26,6 +28,8 @@ class Studio:
                 self._progress = {"done": 0, "chapter": ""}
                 def report(pages, count):
                     self._progress = {"done": pages, "chapter": f"已读取 {pages} 页，共 {count} 篇"}
+                if self._login and site_plugins.hostname(url) == "esjzone.cc":
+                    self._sync_login()
                 self._book = analyze(url, self._check, report)
                 return {k: v for k, v in self._book.items() if k != "_rule"}
         except site_plugins.UnsupportedSite as e:
@@ -68,13 +72,38 @@ class Studio:
         finally:
             self._lock.release()
 
+    def esj_login(self):
+        if self._login is None:
+            window = webview.create_window("登录 ESJ Zone · 登录后回到拾卷重新解析",
+                                           "https://www.esjzone.cc/my/login", width=900, height=700)
+            self._login = window
+            def clear_window():
+                self._login = None
+            window.events.closed += clear_window
+            # Capture only this site's cookies on completed navigation, including after login.
+            window.events.loaded += self._sync_login
+        else:
+            self._login.show()
+
+    def _sync_login(self):
+        window = self._login
+        if not window or site_plugins.hostname(window.get_current_url() or "") != "esjzone.cc":
+            return
+        jar = book.requests.cookies.RequestsCookieJar()
+        for cookie in window.get_cookies() or []:
+            for key, morsel in cookie.items():
+                domain = morsel["domain"].lstrip(".").lower()
+                if domain in ("www.esjzone.cc", "esjzone.cc"):
+                    jar.set(key, morsel.value, domain=domain, path=morsel["path"] or "/", secure=True)
+        book.esj_cookies = jar
+
     def progress(self):
         return self._progress
 
     def cancel(self):
         self._stop.set()
 
-    def export(self, title, author, indices, picture):
+    def export(self, title, author, indices, picture, names=None):
         if not self._lock.acquire(blocking=False):
             return {"error": "请等待当前操作完成。"}
         tmp = None
@@ -82,6 +111,11 @@ class Studio:
             self._stop.clear()
             self._progress = {"done": 0, "chapter": ""}
             selected = [self._book["chapters"][i] for i in sorted(set(indices))]
+            if names is not None:
+                selected = [dict(ch, source_name=ch["name"], name=names[str(i)].strip())
+                            for i, ch in zip(sorted(set(indices)), selected)]
+                if any(not ch["name"] for ch in selected):
+                    raise ValueError("章节名不能为空。")
             if not selected or not title.strip():
                 raise ValueError("请填写书名并选择章节。")
             filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", title)[:100].rstrip(" .") or "小说"
@@ -121,5 +155,7 @@ if __name__ == "__main__":
     from ctypes import windll
     windll.shell32.SetCurrentProcessExplicitAppUserModelID("NovelPress.Studio")
     page = Path(__file__).with_name("studio.html").read_text(encoding="utf-8-sig")
+    icon = Path(__file__).with_name("book.ico")
+    page = page.replace("__APP_ICON__", base64.b64encode(icon.read_bytes()).decode("ascii"))
     webview.create_window("拾卷 · 网页小说制书工具", html=page, js_api=Studio(), width=1100, height=790, min_size=(760, 600), background_color="#f7f8f4", text_select=True)
-    webview.start(gui="edgechromium", private_mode=True)
+    webview.start(gui="edgechromium", private_mode=True, icon=str(icon))

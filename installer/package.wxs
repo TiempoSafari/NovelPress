@@ -17,7 +17,7 @@
         </Component>
         <Directory Id="Bundled" Name="bundled-plugins">
           <Component Id="Rules" Guid="68284C45-5E50-4732-A372-31BE9FBE89B1">
-            <File Source="plugins/silvernoelle.com.json"/><File Source="plugins/zh.wikisource.org.json"/><File Source="plugins/插件编写说明.md"/>
+            <File Source="plugins/esjzone.cc.json"/><File Source="plugins/silvernoelle.com.json"/><File Source="plugins/zh.wikisource.org.json"/><File Source="plugins/插件编写说明.md"/>
             <RegistryValue Root="HKCU" Key="Software\TiempoSafari\NovelPress" Name="Rules" Value="$(var.Version)" Type="string" KeyPath="yes"/>
           </Component>
         </Directory>

@@ -2,6 +2,10 @@
 
 在 Windows 上将支持站点的小说章节整理成带封面和目录的 EPUB 3。可选择章节、修改书名与作者，并通过 JSON 插件扩展站点。
 
+内置 ESJ Zone、银龙诺艾尔和中文维基文库插件。ESJ 未向访客显示作品时，可在输入网址后点「登录 ESJ Zone」，通过站点自己的登录页登录，然后回到主窗口重新解析。登录状态仅用于本次运行。
+
+章节可逐条改名，也可勾选后使用文字替换、正则替换或编号模板，一次预览并应用。网站封面可用时自动采用，也可从本地选择图片。目录和章标题均使用确认后的名称。
+
 ## 安装与更新
 
 从 [GitHub Releases](https://github.com/TiempoSafari/NovelPress/releases/latest) 下载 x64 MSI，双击后选择当前用户可写的安装目录。从开始菜单启动「拾卷 NovelPress」。界面使用 Microsoft Edge WebView2 Runtime。
