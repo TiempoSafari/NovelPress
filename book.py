@@ -5,6 +5,7 @@ import time
 import uuid
 import zipfile
 from datetime import datetime, timezone
+from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit, urldefrag
 from xml.sax.saxutils import escape
 
@@ -18,6 +19,19 @@ CHAPTER = re.compile(r"第\s*[零〇一二两三四五六七八九十百千万�
 NAV = re.compile(r"^(?:上一[章页頁回]|下一[章页頁回]|返回目录|回目錄|加入书签|投推荐票|章节目录|下一节|上一节|next chapter|previous chapter)$", re.I)
 BODY = "#chaptercontent,#chapterContent,#chapter-content,#nr1,.chapter-content,.chapter_content,.read-content,.readContent,.novel-content,.prp-pages-output,.mw-parser-output,#content,article,main"
 JUNK = "script,style,noscript,nav,header,footer,aside,form,iframe,button,[hidden],.advertisement,.ads,.navigation,.mw-editsection,.noprint,.ws-noexport,.ws-pagenum,.ws-header,.licenseContainer"
+
+
+@dataclass(frozen=True)
+class InlineText:
+    """Text whose superscript/subscript appearance must survive XHTML export."""
+    tags: tuple
+    text: str
+
+    def render(self):
+        value = xml(self.text)
+        for tag in reversed(self.tags):
+            value = f"<{tag}>{value}</{tag}>"
+        return value
 
 
 # A session explicitly opened in the ESJ login window, kept only for this run.
@@ -80,9 +94,9 @@ def lines(node, source, base=None):
         if any(isinstance(run, Illustration) for run in runs):
             paragraphs.append(tuple(runs))
         elif runs:
-            line = " ".join("".join(runs).split())
+            line = " ".join("".join(run.text if isinstance(run, InlineText) else run for run in runs).split())
             if line and not NAV.fullmatch(line):
-                paragraphs.append(line)
+                paragraphs.append(tuple(runs) if any(isinstance(run, InlineText) for run in runs) else line)
         runs.clear()
 
     # Some editors link directly to the image rather than inserting an img.
@@ -95,10 +109,21 @@ def lines(node, source, base=None):
             flush_text()
             runs.append(illustration(child, base or source, source))
         elif isinstance(child, NavigableString) and not isinstance(child, Comment):
+            tags = []
+            parent = child.parent
+            while parent is not None and parent is not node:
+                if isinstance(parent, Tag) and parent.name in ("sup", "sub"):
+                    tags.append(parent.name)
+                parent = parent.parent
+            tags.reverse()
             for i, segment in enumerate(str(child).split("\n")):
                 if i:
                     finish_line()
-                text.append(segment)
+                if tags and segment:
+                    flush_text()
+                    runs.append(InlineText(tuple(tags), segment))
+                else:
+                    text.append(segment)
     finish_line()
     return paragraphs
 
@@ -282,10 +307,13 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                             image_done += 1
                             progress(i - 1, f"{ch['name']} · 正在收录插图（{image_done}/{image_total}）")
                             content_parts.append(images.render(run, ch["name"]))
+                        elif isinstance(run, InlineText):
+                            content_parts.append(run.render())
                         else:
                             content_parts.append(xml(run))
                     content = "".join(content_parts)
-                    body.append(f'<p class="art">{content}</p>')
+                    css_class = ' class="art"' if any(isinstance(run, Illustration) for run in paragraph) else ""
+                    body.append(f"<p{css_class}>{content}</p>")
             book.writestr(f"ch{i}.xhtml", xhtml(ch["name"], "".join(body)))
             items.append(f'<item id="c{i}" href="ch{i}.xhtml" media-type="application/xhtml+xml"/>')
             spine.append(f'<itemref idref="c{i}"/>')
