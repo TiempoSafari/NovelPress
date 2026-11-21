@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "哔哩轻小说",
+  "catalog": ".volumes",
+  "catalog_link": "#btnReadBook[href$='/catalog']",
+  "title": "h1.book-title",
+  "links": ".volumes a.chapter-li-a[href]",
+  "ignore_links": "^插图$",
+  "chapter_title": "h1#atitle",
+  "author": ".authorname",
+  "cover": "img.book-cover",
+  "body": "#acontent"
+}

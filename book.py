@@ -284,7 +284,7 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                     cache_url, cached = address, str(doc) if fragment else None
                 if cached:
                     doc = BeautifulSoup(cached, "html.parser")
-                paragraphs = site_plugins.paragraphs(doc, rule, lambda block: lines(block, source, page_base(doc, source))) if rule else collect_pages(doc, source, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
+                paragraphs = site_plugins.paragraphs(doc, rule, lambda block: lines(block, source, page_base(doc, source)), source) if rule else collect_pages(doc, source, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
             except InterruptedError:
                 raise
             except Exception as error:

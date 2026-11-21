@@ -173,6 +173,8 @@ class Studio:
             self._stop.clear()
             self._progress = {"done": 0, "chapter": ""}
             selected = [self._book["chapters"][i] for i in sorted(set(indices))]
+            if any(ch.get("locked") for ch in selected):
+                raise ValueError("所选目录包含站点标记为 VIP 的章节。拾卷不会绕过会员权限，请取消这些章节的选择。")
             if names is not None:
                 selected = [dict(ch, source_name=ch["name"], name=names[str(i)].strip())
                             for i, ch in zip(sorted(set(indices)), selected)]

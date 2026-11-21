@@ -129,12 +129,13 @@ function render(){
  const frag=document.createDocumentFragment();
  book.chapters.forEach((ch,i)=>{
   const row=document.createElement('div'),label=document.createElement('label'),cb=document.createElement('input');
-  row.className='row';cb.type='checkbox';cb.checked=chosen.has(i);
+  row.className='row';cb.type='checkbox';cb.checked=chosen.has(i);cb.disabled=!!ch.locked;
   cb.onchange=()=>{cb.checked?chosen.add(i):chosen.delete(i);sync()};
   const no=document.createElement('small'),name=document.createElement('span'),edit=document.createElement('button');
   no.className='num';no.textContent=String(i+1).padStart(2,'0');name.textContent=ch.name;
-  edit.className='plain';edit.textContent='改名';edit.onclick=()=>openRename(i);
-  label.append(cb,no,name);row.append(label,edit);frag.append(row)
+  if(ch.locked){const badge=document.createElement('small');badge.textContent='VIP';badge.title='该章节标记为站点付费章节';badge.style.cssText='margin-left:8px;padding:1px 6px;border-radius:8px;background:#f3e6d4;color:#8a5320;font-size:10px;flex:none';label.append(cb,no,name,badge)}else label.append(cb,no,name);
+  edit.className='plain';edit.textContent='改名';edit.disabled=!!ch.locked;edit.onclick=()=>openRename(i);
+  row.append(label,edit);frag.append(row)
  });el('rows').replaceChildren(frag);el('rows').classList.add('fresh');sync()
 }
 let editIndex=null, planned=[];
@@ -179,8 +180,8 @@ async function installPlugin(){
 }
 el('install').onclick=installPlugin;el('installHere').onclick=installPlugin;
 el('plugins').onclick=async()=>{try{await pywebview.api.open_plugins()}catch(err){msg(err.message,true)}};
-el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');bookProgress(0,0,'正在解析目录');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((_,i)=>i));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el("bookMeter").hidden=true;el('cancel').hidden=true;busy=false;sync()}};
-el('all').onclick=()=>{chosen=new Set(book.chapters.map((_,i)=>i));render()};el('none').onclick=()=>{chosen.clear();render()};
+el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');bookProgress(0,0,'正在解析目录');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((ch,i)=>ch.locked?-1:i).filter(i=>i>=0));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el("bookMeter").hidden=true;el('cancel').hidden=true;busy=false;sync()}};
+el('all').onclick=()=>{chosen=new Set(book.chapters.map((ch,i)=>ch.locked?-1:i).filter(i=>i>=0));render()};el('none').onclick=()=>{chosen.clear();render()};
 el('cancel').onclick=async()=>{await pywebview.api.cancel();msg('正在取消…')};
 function bookProgress(done,total,phase){
  const bar=el('progress');bar.max=total||1;

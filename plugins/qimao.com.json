@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "name": "七猫小说",
+  "catalog": ".book-detail-body",
+  "title": ".book-information .title .txt",
+  "chapter_title": ".chapter-title",
+  "author": ".author-information .author-name",
+  "cover": ".book-information .wrap-pic img",
+  "body": ".chapter-detail-article.font-18 .article",
+  "chapter_api": "/api/book/chapter-list",
+  "chapter_lock_field": "is_vip",
+  "book_id_pattern": "/shuku/(\\d+)/?$",
+  "chapter_url": "/shuku/{book_id}-{chapter_id}/"
+}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "刺猬猫",
+  "parser": "ciweimao",
+  "catalog": ".book-chapter",
+  "catalog_link": ".book-chapter .btn-more[href]",
+  "title": ".book-info h1.title, h3",
+  "title_remove": "span",
+  "links": ".book-chapter-box a[href*='/chapter/']",
+  "chapter_title": "h1.chapter",
+  "author": ".book-info h1.title span a",
+  "body": "#J_BookRead, #J_ImgRead"
+}
