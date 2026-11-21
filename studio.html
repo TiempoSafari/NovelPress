@@ -51,22 +51,14 @@ dialog[open],.meter:not([hidden]),#release:not([hidden]),.work,.rows.fresh{anima
 .edge.nw,.edge.se{cursor:nwse-resize}.edge.ne,.edge.sw{cursor:nesw-resize}body.maximized .edge{display:none}
 @media(max-height:680px){.work{gap:10px;padding-top:14px}.origin{padding:10px 14px}.poster{min-height:120px;padding:8px}.poster canvas{max-height:135px;width:auto}.meta{margin-top:12px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-#binding{position:fixed;inset:70px 0 145px;z-index:4;pointer-events:none;display:grid;place-items:center;background:radial-gradient(ellipse at center,#f7f8f4 15%,#f7f8f4ed 43%,transparent 76%);opacity:0;transition:opacity .22s}
+#binding{position:fixed;inset:48px 0 0;z-index:8;overflow:hidden;background:radial-gradient(ellipse at 43% 28%,#547466,#294c41 51%,#142f28);color:#fff9e8}
 #binding[hidden]{display:none}
-#binding.visible{opacity:1}
-.spread{--leaf:min(17vw,18vh,165px);width:calc(2 * var(--leaf));height:calc(1.4 * var(--leaf));position:relative;perspective:1000px;filter:drop-shadow(3px 11px 8px #23372f32)}
-.leaf,.jacket,.incoming{position:absolute;inset:0 0 0 50%;border-radius:2px 6px 6px 2px}
-.leaf{border:1px solid #ccbfa7;background:linear-gradient(90deg,#c4b79c,#f6efe0 8%,#fff9eb 35%,#f5eddb);box-shadow:0 var(--depth,1px) #d6cbb7,0 calc(var(--depth,1px) + 3px) #2b5143;display:grid;align-content:center;padding:14%;overflow:hidden}
-.leaf::after,.incoming::after{content:"";display:block;height:36%;min-height:30px;background:repeating-linear-gradient(#af9e8040 0 1px,transparent 1px 8px)}
-.jacket{z-index:2;transform-origin:left center;transform-style:preserve-3d;transition:transform .65s cubic-bezier(.2,.72,.22,1)}
-.jacket img,.jacket i{width:100%;height:100%;position:absolute;inset:0;backface-visibility:hidden;border-radius:inherit}
-.jacket i{transform:rotateY(180deg);background:linear-gradient(90deg,#f4ebd8 65%,#e4d8bf 95%,#c2b398);border:1px solid #cfbea0;box-sizing:border-box}
-.visible.open .jacket{transform:rotateY(-177deg)}
-#leafTitle{font:600 clamp(12px,1.5vw,17px)/1.5 SimSun,serif;position:absolute;top:18%;left:14%;right:11%;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.incoming{z-index:3;padding:15% 6% 0;background:linear-gradient(110deg,#eee2cb,#fffbed 48%,#f0e4ce);border:1px solid #d2c6af;box-shadow:2px 4px 7px #48301c22;transform-origin:left bottom}
-#bindCount{position:absolute;top:calc(100% + 22px);width:100%;text-align:center;color:#304d3e;font-variant-numeric:tabular-nums}
+#bindCanvas{display:block;width:100%;height:100%;max-width:none;box-shadow:none;background:transparent}
+.bindingFooter{position:absolute;inset:auto 0 0;padding:20px 6% 4vh;background:linear-gradient(transparent,#193a31 48%);display:grid;grid-template-columns:1fr auto;gap:5px 28px;align-items:center}
+.bindingFooter strong{font:600 20px Georgia,"Microsoft YaHei UI",serif;font-variant-numeric:tabular-nums}
+#bindPhase{grid-column:1;font-size:13px;color:#d9e6dc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#bindCancel{grid-column:2;grid-row:1/3;color:#fff9e8;background:transparent;border-color:#91a99a}
 body.binding #cover{visibility:hidden}
-@media(prefers-reduced-motion:reduce){#binding,.jacket{transition:none}}
 </style>
 <header class="appbar">
   <div id="dragTitle" class="pywebview-drag-region"><img alt="" width="32" height="32" draggable="false" src="data:image/x-icon;base64,__APP_ICON__"><strong>拾卷</strong><span>网页小说制书工具</span></div>
@@ -82,7 +74,7 @@ body.binding #cover{visibility:hidden}
 <div id="searchRow"><label class="field" for="nameSearch">查找</label><input type="text" id="nameSearch"></div>
 <label class="field" id="replaceLabel" for="nameReplace">替换为</label><input type="text" id="nameReplace"><p class="hint" id="renameHint"></p>
 <div id="changes" role="status"></div><footer><button id="closeRename">取消</button><button class="primary" id="applyRename">应用</button></footer></dialog>
-<div id="binding" hidden aria-hidden="true"><div class="spread"><div class="leaf"><span id="leafTitle"></span></div><div class="jacket"><img alt=""><i></i></div><strong id="bindCount"></strong></div></div>
+<div id="binding" hidden role="dialog" aria-label="正在装订电子书"><canvas id="bindCanvas" aria-hidden="true"></canvas><div class="bindingFooter"><strong id="bindCount"></strong><span id="bindPhase" role="status"></span><button id="bindCancel">取消导出</button></div></div>
 <script>
 const el=id=>document.getElementById(id), ttl=el('title'), auth=el('author'), url=el('url'), cv=el('cover');
 let book=null,busy=false,chosen=new Set(),ready=false,loadedUrl='';
@@ -215,62 +207,173 @@ function poll(read,paint){
  return ()=>{active=false;clearInterval(timer)}
 }
 function bindBook(total){
- const scene=el('binding'),spread=scene.querySelector('.spread'),jacket=scene.querySelector('.jacket');
+ const scene=el('binding'),canvas=el('bindCanvas'),ctx=canvas.getContext('2d');
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
- const coverRect=cv.getBoundingClientRect();
+ const names=[...chosen].sort((a,b)=>a-b).map(i=>book.chapters[i].name);
+ const preview=cv.getBoundingClientRect();
+ const shell=document.querySelector('.shell');
  scene.hidden=false;
- scene.querySelector('img').src=cv.toDataURL();
- el('leafTitle').textContent=ttl.value;
- el('bindCount').textContent='';
- spread.style.setProperty('--depth','1px');
+ shell.inert=true;
  document.body.classList.add('binding');
- const dest=jacket.getBoundingClientRect();
- const offset=()=>translateCover(cv.getBoundingClientRect(),jacket.offsetWidth,jacket.offsetHeight);
- function translateCover(rect,width,height){
-  const page=scene.querySelector('.leaf').getBoundingClientRect();
-  return 'translate('+(rect.left-page.left)+'px,'+(rect.top-page.top)+'px) scale('+rect.width/width+','+rect.height/height+')';
- }
- spread.style.transformOrigin='50% 0';
- scene.classList.add('visible');
- const flight=reduced?null:spread.animate([{transform:translateCover(coverRect,dest.width,dest.height)},{transform:'none'}],{duration:480,easing:'cubic-bezier(.22,.75,.25,1)'});
- let closed=false,last=0;
- const opening=(flight?flight.finished:Promise.resolve()).then(()=>{if(!closed)scene.classList.add('open')});
- function update(count,title){
-  if(count<=last||closed)return;
-  const burst=Math.min(count-last,3);
-  last=count;
-  el('leafTitle').textContent=title;
-  el('bindCount').textContent=count+' / '+total+' 章';
-  spread.style.setProperty('--depth',(1+5*count/total)+'px');
-  if(reduced)return;
-  opening.then(()=>{
-   if(closed)return;
-   for(let n=0;n<burst;n++){
-    const sheet=document.createElement('div');
-    sheet.className='incoming';
-    spread.append(sheet);
-    const motion=sheet.animate([
-     {transform:'translate(75%, -70%) rotate(-17deg) rotateY(-42deg)',opacity:0},
-     {transform:'translate(30%, -29%) rotate(-7deg) rotateY(-22deg)',opacity:1,offset:.38},
-     {transform:'none',opacity:1}
-    ],{duration:490,delay:n*55,fill:'both',easing:'cubic-bezier(.2,.62,.25,1)'});
-    motion.onfinish=()=>sheet.remove();
+ const cancel=el('bindCancel');
+ cancel.disabled=false;
+ cancel.onclick=()=>{cancel.disabled=true;el('cancel').click();el('bindPhase').textContent='正在取消…'};
+ cancel.focus();
+ el('bindPhase').textContent='正在读取章节';
+ el('bindCount').textContent='0 / '+total+' 章';
+ const textures=new Map();
+ function paper(page){
+  if(textures.has(page))return textures.get(page);
+  const sheet=document.createElement('canvas');
+  sheet.width=400;sheet.height=552;
+  const ink=sheet.getContext('2d');
+  const tint=ink.createLinearGradient(0,0,400,32);
+  tint.addColorStop(0,'#dfd2b9');tint.addColorStop(.09,'#f6ecd8');tint.addColorStop(1,'#fff9ea');
+  ink.fillStyle=tint;ink.fillRect(0,0,400,552);
+  if(page>0){
+   ink.fillStyle='#77674f';ink.font='16px Georgia';ink.fillText(String(page).padStart(2,'0'),45,58);
+   ink.fillStyle='#393d31';ink.font='bold 26px SimSun,serif';
+   let line='',y=115;
+   for(const c of names[page-1]||''){
+    if(ink.measureText(line+c).width>308){ink.fillText(line,45,y);y+=37;line='';if(y>240)break}
+    line+=c;
    }
-  });
- }
- return {update,async finish(saved){
-  if(saved)await opening;
-  closed=true;
-  if(saved&&!reduced){
-   await new Promise(resolve=>setTimeout(resolve,390));
-   scene.classList.remove('open');
-   await new Promise(resolve=>setTimeout(resolve,650));
-   await spread.animate([{transform:'none'},{transform:offset()}],{duration:350,easing:'ease-in-out'}).finished;
+   ink.fillText(line,45,y);
+   ink.fillStyle='#d4c9b5';
+   for(let i=0;y+55+i*20<468;i++)ink.fillRect(45,y+55+i*20,i%5===4?197:302,1.6);
   }
-  scene.classList.remove('visible','open');
-  scene.hidden=true;
-  scene.querySelectorAll('.incoming').forEach(node=>node.remove());
-  document.body.classList.remove('binding');
+  if(textures.size>8)textures.delete(textures.keys().next().value);
+  textures.set(page,sheet);return sheet;
+ }
+ const started=performance.now();
+ let collected=0,landed=0,next=0,phase='idle',since=started,raf,closing=0,sequence=0;
+ const bounded=t=>Math.max(0,Math.min(1,t));
+ const ease=t=>t*t*(3-2*t);
+ const directions=[[1,-.75],[-1,.65],[-.28,-1],[.4,1],[-1,-.55],[1,.6],[0,1],[-1,0]];
+ let w,h,scale,cx,cy;
+ function project(x,y,z){
+  const depth=1+z*.06;
+  return [cx+scale*(x*.95+y*.15-z*.14)*depth,cy+scale*(y*.85-x*.12-z*.53)*depth];
+ }
+ // Map narrow strips of a printed page onto a bending surface, including the back.
+ function drawSheet(texture,edge,shade=true){
+  const strips=32;
+  let a=edge(0,-.69),b=edge(0,.69);
+  for(let i=0;i<strips;i++){
+   const u=(i+1)/strips,c=edge(u,-.69),d=edge(u,.69);
+   const dx=c[0]-a[0],dy=c[1]-a[1],vx=b[0]-a[0],vy=b[1]-a[1];
+   const det=dx*vy-dy*vx;
+   if(Math.abs(det)>.01){
+    ctx.save();
+    ctx.transform(dx,dy,vx,vy,a[0],a[1]);
+    if(det>0)ctx.drawImage(texture,i*texture.width/strips,0,texture.width/strips,texture.height,0,0,1.12,1);
+    else{ctx.fillStyle='#efe4cc';ctx.fillRect(0,0,1.12,1)}
+    if(shade){
+     const light=Math.min(.23,Math.abs(dy)/(Math.abs(dx)+Math.abs(dy)+.01)*.25);
+     ctx.fillStyle='rgba(80,66,44,'+light+')';ctx.fillRect(0,0,1.12,1);
+    }
+    ctx.restore();
+   }
+   a=c;b=d;
+  }
+ }
+ function frame(now){
+  const rect=canvas.getBoundingClientRect();
+  w=rect.width;h=rect.height;
+  const ratio=Math.min(devicePixelRatio||1,2);
+  if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){
+   canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
+  }
+  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
+  scale=Math.min(w*.335,h*.405,355);
+  cx=w*.50;cy=h*.44;
+  const ground=ctx.createRadialGradient(0,0,0,0,0,1);
+  ground.addColorStop(0,'#0b201aca');ground.addColorStop(1,'#0b201a00');
+  ctx.save();ctx.translate(cx,cy+scale*.76);ctx.scale(scale*1.15,scale*.18);
+  ctx.fillStyle=ground;ctx.fillRect(-1,-1,2,2);ctx.restore();
+  const age=now-started;
+  const fly=reduced?1:ease(bounded(age/510));
+  const close=closing?ease(bounded((now-closing)/530)):0;
+  const travel=closing?ease(bounded((now-closing-530)/340)):1-fly;
+  const open=reduced?1:ease(bounded((age-350)/620))*(1-close);
+  cy+=reduced?0:Math.sin(age/1050)*5;
+
+  scale+=(preview.width-scale)*travel;
+  cx+=(preview.left-cx)*travel;cy+=(preview.top-rect.top+preview.height/2-cy)*travel;
+  function flat(texture,side,z){
+   drawSheet(texture,(u,y)=>project(side<0?u-1:u,y,z),false);
+  }
+  // A cloth cover and a few exposed leaves give the floating book a visible fore edge.
+  const sides=open>.95?[-1,1]:[1];
+  for(const side of sides){
+   for(const [z,color,margin] of [[-.079,'#193c32',.025],[-.062,'#ad9d81',.008],[-.042,'#e7dcc6',.006],[-.025,'#bfaf94',.003]]){
+    const outer=side*(1+margin);
+    const corners=[[0,-.69-margin],[outer,-.69-margin],[outer,.69+margin],[0,.69+margin]];
+    ctx.beginPath();
+    corners.forEach(([x,y],i)=>{const point=project(x,y,z);if(i)ctx.lineTo(...point);else ctx.moveTo(...point)});
+    ctx.closePath();ctx.fillStyle=color;ctx.fill();
+   }
+  }
+  flat(paper(0),1,-.014);
+  if(open>.95){
+   flat(paper(0),-1,-.035);
+   flat(paper(Math.max(0,landed-1)),-1,0);
+  }
+  flat(paper(phase==='idle'?landed:0),1,0);
+  if(open<.99){
+   drawSheet(cv,(u,y)=>project(u*Math.cos(open*Math.PI),y,.015+u*Math.sin(open*Math.PI)),false);
+  }
+  if(!closing&&open>=.99){
+   if(phase==='idle'&&collected>landed){
+    next=collected-landed>4?collected:landed+1;
+    phase=landed?'turn':'fly';since=now;sequence++;
+   }
+   const fast=collected-landed>1;
+   if(phase==='turn'){
+    const t=reduced?1:bounded((now-since)/(fast?260:500));
+    drawSheet(paper(landed),(u,y)=>{
+     const angle=Math.PI*ease(t)+.66*Math.sin(Math.PI*t)*(1-u);
+     return project(u*Math.cos(angle),y,u*Math.sin(angle)+.025);
+    });
+    if(t>=1){phase='fly';since=now}
+   }
+   if(phase==='fly'){
+    if(landed)flat(paper(landed),-1,.005);
+    const t=reduced?1:bounded((now-since)/(fast?390:790));
+    const left=1-ease(t),[ax,ay]=directions[(sequence-1)%directions.length];
+    drawSheet(paper(next),(u,y)=>{
+     const curl=(1-t)*2.55;
+     const x=curl?Math.sin(curl*u)/curl:u;
+     const z=curl?(1-Math.cos(curl*u))/curl:0;
+     return project(x+left*(ax*2.55+y*.48),y+left*ay*1.95+Math.sin(t*Math.PI)*.13*u,z+left*.92+.012);
+    });
+    if(t>=1){landed=next;phase='idle'}
+   }
+  }
+
+  raf=requestAnimationFrame(frame);
+ }
+ frame(started);
+ return {update(count,title,message){
+  collected=Math.max(collected,count||0);
+  el('bindCount').textContent=collected+' / '+total+' 章';
+  if(!cancel.disabled)el('bindPhase').textContent=message||title||'正在装订';
+ },async finish(saved){
+  cancel.disabled=true;
+  try{
+   if(saved&&!reduced){
+    // Only the newest pending chapter needs to land during the final flourish.
+    if(collected-landed>1){landed=Math.max(landed,collected-1);phase='idle'}
+    const deadline=performance.now()+2300;
+    while(landed<collected&&performance.now()<deadline&&!document.hidden)
+     await new Promise(resolve=>setTimeout(resolve,45));
+    closing=performance.now();el('bindPhase').textContent='已保存 EPUB';
+    if(!document.hidden)await new Promise(resolve=>setTimeout(resolve,875));
+   }
+  }finally{
+   cancelAnimationFrame(raf);scene.hidden=true;shell.inert=false;
+   document.body.classList.remove('binding');
+  }
  }};
 }
 el('export').onclick=async()=>{
@@ -279,7 +382,7 @@ el('export').onclick=async()=>{
  const stop=poll(()=>pywebview.api.progress(),v=>{
   if(v.kind!=='export'||!v.chapter)return;
   binding??=bindBook(total);
-  binding.update(v.collected,v.last_title);
+  binding.update(v.collected,v.last_title,v.chapter);
   bookProgress(v.collected,total,v.done===total?'正在写入电子书':'正在下载章节');
   msg(v.chapter)
  });
