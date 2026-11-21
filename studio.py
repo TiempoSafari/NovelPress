@@ -58,7 +58,15 @@ class Studio:
             return {"message": "暂时无法连接 GitHub，请稍后重试。"}
 
     def download_update(self, version):
-        updates.download(version)
+        if not self._lock.acquire(blocking=False):
+            return "请先完成当前制书操作。"
+        try:
+            updates.download(version)
+            return "安装向导已打开，请保存当前操作并关闭拾卷后继续。"
+        except Exception as e:
+            return f"未能启动更新：{e}"
+        finally:
+            self._lock.release()
 
     def progress(self):
         return self._progress
