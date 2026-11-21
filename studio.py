@@ -6,6 +6,7 @@ import threading
 import json
 from pathlib import Path
 
+from checkpoint import Checkpoint
 import book
 import updates
 import site_plugins
@@ -42,7 +43,7 @@ class Studio:
         self._settings.write_text(json.dumps({"export_folder": str(folder)}, ensure_ascii=False), encoding="utf-8")
         return {"path": str(folder)}
 
-    def inspect(self, url):
+    def inspect(self, url, fresh=False):
         try:
             with self._lock:
                 self._book = None
@@ -52,8 +53,21 @@ class Studio:
                     self._progress = {"done": pages, "chapter": f"已读取 {pages} 页，共 {count} 篇"}
                 if self._login and site_plugins.hostname(url) == "esjzone.cc":
                     self._sync_login()
-                self._book = analyze(url, self._check, report)
-                return {k: v for k, v in self._book.items() if k != "_rule"}
+                self._checkpoint = Checkpoint(self._settings.parent / "resume-v1", url)
+                if fresh:
+                    self._checkpoint.path.unlink(missing_ok=True)
+                task = self._checkpoint.snapshot()
+                if task:
+                    self._book = task["book"]
+                else:
+                    self._book = analyze(url, self._check, report)
+                result = {k: v for k, v in self._book.items() if k != "_rule"}
+                if task:
+                    state = task["state"]
+                    saved = self._checkpoint.completed()
+                    result["resume"] = dict(state, completed=sum(
+                        self._book["chapters"][i]["url"] in saved for i in state["indices"]))
+                return result
         except site_plugins.UnsupportedSite as e:
             return {"error": str(e), "unsupported": e.host}
         except InterruptedError:
@@ -165,7 +179,7 @@ class Studio:
     def cancel(self):
         self._stop.set()
 
-    def export(self, title, author, indices, picture, names=None):
+    def export(self, title, author, indices, picture, names=None, cover_kind=None):
         if not self._lock.acquire(blocking=False):
             return {"error": "请等待当前操作完成。"}
         tmp = None
@@ -198,6 +212,10 @@ class Studio:
                 dest = Path(str(dest) + ".epub")
                 if dest.exists():
                     raise ValueError("同名 EPUB 已存在，请重新选择文件名。")
+            state = {"indices": sorted(set(indices)), "names": names or {}, "title": title,
+                     "author": author, "picture": picture if cover_kind != "排版封面" else "",
+                     "cover_kind": cover_kind}
+            self._checkpoint.start({"book": self._book, "state": state})
             with tempfile.NamedTemporaryFile(dir=dest.parent, delete=False, suffix=".part") as file:
                 tmp = Path(file.name)
 
@@ -205,26 +223,15 @@ class Studio:
                 if self._stop.is_set():
                     raise InterruptedError()
 
-            collected = 0
-            last_title = ""
-
-            excerpts = []
-
-            def chapter_ready(count, name, excerpt):
-                excerpts.append(excerpt)
-                nonlocal collected, last_title
-                collected, last_title = count, name
-                report(count, f"已收录《{name}》")
-
             def report(done, chapter):
-                self._progress = {"kind": "export", "done": done, "chapter": chapter,
-                                  "collected": collected, "last_title": last_title,
-                                  "excerpt": excerpts[-1] if excerpts else ""}
+                self._progress = {"kind": "export", "done": done, "chapter": chapter}
 
-            artwork = write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"), chapter_ready)
+            artwork = write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"), checkpoint=self._checkpoint)
             check()
             os.replace(tmp, dest)
-            return {"path": str(dest), "excerpts": excerpts, **artwork}
+            if not artwork["missing"]:
+                self._checkpoint.path.unlink(missing_ok=True)
+            return {"path": str(dest), **artwork}
         except InterruptedError:
             return {"cancelled": True}
         except Exception as e:

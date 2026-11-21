@@ -1,5 +1,7 @@
 """网页解析与 EPUB 3 打包。"""
 import base64
+import json
+from checkpoint import retry_network
 import re
 import time
 import uuid
@@ -260,53 +262,83 @@ def xhtml(title, body):
     return f'<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>{xml(title)}</title><link rel="stylesheet" href="book.css" type="text/css"/></head><body>{body}</body></html>'
 
 
-def write_book(path, title, author, chapters, cover, progress, check, rule=None, chapter_ready=None):
-    cache_url, cached = None, None
+def encode_chapter(paragraphs):
+    def encode(run):
+        if isinstance(run, Illustration):
+            return {"sources": run.sources, "referer": run.referer, "alt": run.alt}
+        if isinstance(run, InlineText):
+            return {"tags": run.tags, "text": run.text}
+        return run
+    return json.dumps([p if isinstance(p, str) else [encode(r) for r in p]
+                       for p in paragraphs], ensure_ascii=False)
+
+
+def decode_chapter(raw):
+    def decode(run):
+        if isinstance(run, str):
+            return run
+        if "tags" in run:
+            return InlineText(tuple(run["tags"]), run["text"])
+        return Illustration(tuple(run["sources"]), run["referer"], run["alt"])
+    return [p if isinstance(p, str) else tuple(decode(r) for r in p) for p in json.loads(raw)]
+
+
+def write_book(path, title, author, chapters, cover, progress, check, rule=None, checkpoint=None):
+    cache_url, cached, cached_source = None, None, None
     uid = uuid.uuid4()
     chapter_urls = {urldefrag(ch["url"])[0] for ch in chapters}
     items, spine, links = [], [], []
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as book, ImageArchive(book, esj_cookies, check) as images:
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as book, ImageArchive(book, esj_cookies, check, checkpoint=checkpoint) as images:
         book.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
         book.writestr("META-INF/container.xml", '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
         book.writestr("cover.png", cover)
         book.writestr("cover.xhtml", xhtml(title, '<div style="text-align:center"><img src="cover.png" alt="封面" style="max-width:100%;max-height:95vh"/></div>'))
         book.writestr("book.css", "body{margin:5%;line-height:1.75}h1{font-size:1.5em}p{text-indent:2em;margin:.5em 0}p.art{text-indent:0}img{max-width:100%;height:auto}")
         prepared = []
+        failures = []
         for i, ch in enumerate(chapters, 1):
             check()
             progress(i - 1, f"正在读取《{ch['name']}》· 插图后台并行下载中")
             address, fragment = urldefrag(ch["url"])
-            try:
-                if address != cache_url or cached is None:
-                    if i > 1:
-                        time.sleep(.35)
+            def read():
+                nonlocal cache_url, cached, cached_source
+                if address == cache_url and cached is not None:
+                    doc, source = BeautifulSoup(cached, "html.parser"), cached_source
+                else:
                     doc, source = fetch(address)
                     cache_url, cached = address, str(doc) if fragment else None
-                if cached:
-                    doc = BeautifulSoup(cached, "html.parser")
-                paragraphs = site_plugins.paragraphs(doc, rule, lambda block: lines(block, source, page_base(doc, source)), source) if rule else collect_pages(doc, source, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
-            except InterruptedError:
-                raise
-            except Exception as error:
-                raise ValueError(f'《{ch["name"]}》读取失败：{error}') from error
+                    cached_source = source
+                if rule:
+                    return site_plugins.paragraphs(doc, rule, lambda block: lines(block, source, page_base(doc, source)), source)
+                return collect_pages(doc, source, fragment, ch.get("source_name", ch["name"]), check, chapter_urls)
+
+            raw = checkpoint.get("chapter", ch["url"]) if checkpoint else None
+            if raw is not None:
+                paragraphs = decode_chapter(raw)
+            else:
+                if i > 1:
+                    time.sleep(.35)
+                try:
+                    paragraphs = retry_network(read, check, lambda n: progress(
+                        len(prepared), f"《{ch['name']}》网络异常，第 {n}/2 次重试"))
+                except InterruptedError:
+                    raise
+                except Exception as error:
+                    if not checkpoint:
+                        raise ValueError(f'《{ch["name"]}》读取失败：{error}') from error
+                    failures.append(f'《{ch["name"]}》：{error}')
+                    continue
+                if checkpoint:
+                    checkpoint.put("chapter", ch["url"], encode_chapter(paragraphs))
             for paragraph in paragraphs:
                 if not isinstance(paragraph, str):
                     for run in paragraph:
                         if isinstance(run, Illustration):
                             images.prefetch(run)
             prepared.append((i, ch, paragraphs))
-            if chapter_ready:
-                excerpt = ""
-                for paragraph in paragraphs:
-                    text = paragraph if isinstance(paragraph, str) else "".join(
-                        run if isinstance(run, str) else run.text if isinstance(run, InlineText) else ""
-                        for run in paragraph)
-                    if text.strip():
-                        excerpt = (excerpt + " " + text.strip())[:280]
-                    if len(excerpt) == 280:
-                        break
-                chapter_ready(i, ch["name"], excerpt.strip())
 
+        if failures:
+            raise ValueError(f"{len(failures)} 章未完成，已保留 {len(prepared)} 章。再次导出可继续。\n" + "\n".join(failures[:3]))
         written = len(prepared)
 
         def image_progress(done, total):

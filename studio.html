@@ -51,14 +51,6 @@ dialog[open],.meter:not([hidden]),#release:not([hidden]),.work,.rows.fresh{anima
 .edge.nw,.edge.se{cursor:nwse-resize}.edge.ne,.edge.sw{cursor:nesw-resize}body.maximized .edge{display:none}
 @media(max-height:680px){.work{gap:10px;padding-top:14px}.origin{padding:10px 14px}.poster{min-height:120px;padding:8px}.poster canvas{max-height:135px;width:auto}.meta{margin-top:12px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
-#binding{position:fixed;inset:48px 0 0;z-index:8;overflow:hidden;background:linear-gradient(#f7f8f8,#e3e7e7);color:#293f39}
-#binding[hidden]{display:none}
-#bindCanvas{display:block;width:100%;height:100%;max-width:none;box-shadow:none;background:transparent}
-.bindingFooter{position:absolute;inset:auto 0 0;padding:20px 6% 4vh;background:linear-gradient(transparent,#f4f6f6ed 48%);display:grid;grid-template-columns:1fr auto;gap:5px 28px;align-items:center}
-.bindingFooter strong{font:600 20px Georgia,"Microsoft YaHei UI",serif;font-variant-numeric:tabular-nums}
-#bindPhase{grid-column:1;font-size:13px;color:#435a53;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#bindCancel{grid-column:2;grid-row:1/3;color:#29443b;background:#fafbf9;border-color:#91a99a}
-body.binding #cover{visibility:hidden}
 </style>
 <header class="appbar">
   <div id="dragTitle" class="pywebview-drag-region"><img alt="" width="32" height="32" draggable="false" src="data:image/x-icon;base64,__APP_ICON__"><strong>拾卷</strong><span>网页小说制书工具</span></div>
@@ -67,14 +59,13 @@ body.binding #cover{visibility:hidden}
 </header>
 <div id="release" hidden><div class="bar"><span id="releaseText" role="status"></span><div><button id="getRelease" hidden>下载并打开安装向导</button><button class="plain" id="dismissRelease">关闭</button></div></div><div id="releaseMeter" hidden><progress aria-label="安装包下载进度" id="releaseBar"></progress><output id="releaseNumbers"></output></div></div><div class="shell"><aside><h2>书籍预览</h2><div class="poster"><canvas id="cover" width="540" height="756" aria-label="电子书封面预览"></canvas></div><span id="coverLabel">排版封面</span><div class="exportSettings"><span class="exportFolder" id="exportFolder">每次选择保存位置</span><button class="plain" id="setExportFolder">设置导出文件夹…</button></div><div class="coverTools"><button class="plain" id="uploadCover">选择图片…</button><button class="plain" id="resetCover" hidden>恢复默认</button></div><input hidden type="file" id="imageFile" accept="image/jpeg,image/png,image/webp"><label class="field" for="title">书名</label><input type="text" id="title" maxlength="180" placeholder="解析后自动填写"><label class="field" for="author">作者</label><input type="text" id="author" maxlength="120" placeholder="可选"><div class="meta"><span>电子书格式</span><b>EPUB 3</b></div></aside>
 <main class="work"><h1>制书工作台</h1><form class="origin" id="form"><label for="url">小说网页</label><div class="urlrow"><input type="url" id="url" placeholder="https://…" required><button class="primary" id="inspect" disabled>解析网页</button></div><p class="hint">粘贴小说目录或正文网址。 <button class="example" type="button" id="esjLogin" hidden>登录 ESJ Zone</button></p><div id="unsupported" hidden role="alert" style="margin-top:12px"><strong id="reason"></strong> <button type="button" id="installHere">安装对应插件…</button></div></form>
-<section class="toc"><div class="bar"><h2>章节目录</h2><div><button class="plain" id="renameMany" disabled>批量改名…</button><button class="plain" id="all" disabled>全选</button><button class="plain" id="none" disabled>清空选择</button></div></div><div class="rows" id="rows"><div class="empty"><svg width="58" height="35" viewBox="0 0 58 35" fill="none" stroke="#6b8776" stroke-width="1.7" aria-hidden="true"><path d="M3 6q14-4 25 3 12-7 26-3v23q-14-4-26 2-12-6-25-2zM28 9v21M7 2q11-2 20 3m5 0q10-5 19-3"/></svg><strong>等待导入章节</strong><span class="small">解析网页后，在这里选择要收录的章节。</span></div></div></section>
+<section class="toc"><div class="bar"><h2>章节目录</h2><div><button class="plain" id="freshCatalog" hidden>重新开始…</button><button class="plain" id="renameMany" disabled>批量改名…</button><button class="plain" id="all" disabled>全选</button><button class="plain" id="none" disabled>清空选择</button></div></div><div class="rows" id="rows"><div class="empty"><svg width="58" height="35" viewBox="0 0 58 35" fill="none" stroke="#6b8776" stroke-width="1.7" aria-hidden="true"><path d="M3 6q14-4 25 3 12-7 26-3v23q-14-4-26 2-12-6-25-2zM28 9v21M7 2q11-2 20 3m5 0q10-5 19-3"/></svg><strong>等待导入章节</strong><span class="small">解析网页后，在这里选择要收录的章节。</span></div></div></section>
 <div class="meter" id="bookMeter" hidden><div><strong id="progressPhase">正在下载章节</strong><output id="progressNumber"></output></div><progress id="progress" aria-label="章节下载进度"></progress></div><div class="bottom"><div><strong id="count">已选 0 章</strong><div class="status" role="status" id="status"></div></div><div class="actions"><button id="cancel" hidden>取消</button><button id="export" class="primary" disabled>导出 EPUB ↓</button></div></div></main></div>
 <dialog id="renameBox"><h2 id="renameHeading"></h2>
 <div id="modeRow"><label class="field" for="renameMode">改名方式</label><select id="renameMode"><option value="text">文字替换</option><option value="regex">正则替换</option><option value="format">按模板命名</option></select></div>
 <div id="searchRow"><label class="field" for="nameSearch">查找</label><input type="text" id="nameSearch"></div>
 <label class="field" id="replaceLabel" for="nameReplace">替换为</label><input type="text" id="nameReplace"><p class="hint" id="renameHint"></p>
 <div id="changes" role="status"></div><footer><button id="closeRename">取消</button><button class="primary" id="applyRename">应用</button></footer></dialog>
-<div id="binding" hidden role="dialog" aria-label="正在装订电子书"><canvas id="bindCanvas" aria-hidden="true"></canvas><div class="bindingFooter"><strong id="bindCount"></strong><span id="bindPhase" role="status"></span><button id="bindCancel">取消导出</button></div></div>
 <script>
 const el=id=>document.getElementById(id), ttl=el('title'), auth=el('author'), url=el('url'), cv=el('cover');
 let book=null,busy=false,chosen=new Set(),ready=false,loadedUrl='';
@@ -125,7 +116,7 @@ const initialRows=el("rows").innerHTML;
 function sync(){el("install").disabled=busy||!ready;el("installHere").disabled=busy||!ready;let valid=book&&url.value.trim()===loadedUrl;
  let esj=false;try{esj=['esjzone.cc','www.esjzone.cc'].includes(new URL(url.value).hostname)}catch{}
  el('esjLogin').hidden=!esj;el('esjLogin').disabled=busy||!ready;
- el('renameMany').disabled=busy||!valid||!chosen.size;
+ el('freshCatalog').disabled=busy||!valid;el('renameMany').disabled=busy||!valid||!chosen.size;
  el('uploadCover').disabled=busy||!valid;el('resetCover').disabled=busy||!valid;
  if(!busy&&el('bookMeter').dataset.selection!==[...chosen].join(','))el('bookMeter').hidden=true;
  el('bookMeter').dataset.selection=[...chosen].join(',');
@@ -189,7 +180,21 @@ async function installPlugin(){
 }
 el('install').onclick=installPlugin;el('installHere').onclick=installPlugin;
 el('plugins').onclick=async()=>{try{await pywebview.api.open_plugins()}catch(err){msg(err.message,true)}};
-el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');bookProgress(0,0,'正在解析目录');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const result=await pywebview.api.inspect(url.value.trim());if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((ch,i)=>ch.locked?-1:i).filter(i=>i>=0));render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el("bookMeter").hidden=true;el('cancel').hidden=true;busy=false;sync()}};
+let freshCatalog=false;
+el('freshCatalog').onclick=()=>{
+ if(!confirm('清除这本书的下载进度并重新读取目录？'))return;
+ freshCatalog=true;el('form').requestSubmit();
+};
+el('form').onsubmit=async e=>{e.preventDefault();if(busy||!ready)return;busy=true;book=null;chosen.clear();ttl.value='';auth.value='';siteImage=null;setCover(null,'排版封面');el('rows').innerHTML=initialRows;el('unsupported').hidden=true;sync();msg('正在读取网页…');bookProgress(0,0,'正在解析目录');el('cancel').hidden=false;let reading=true;const timer=setInterval(async()=>{let v=await pywebview.api.progress();if(reading&&v.chapter)msg(v.chapter)},450);try{const fresh=freshCatalog;freshCatalog=false;el("freshCatalog").hidden=true;const result=await pywebview.api.inspect(url.value.trim(),fresh);if(result.unsupported){el('reason').textContent='不支持此网站 · '+result.unsupported;el('unsupported').dataset.host=result.unsupported;el('unsupported').hidden=false;msg('请选择该域名对应的 JSON 插件。');return}if(result.error)throw Error(result.error);book=result;if(result.cover){try{siteImage=await imageFrom(result.cover);setCover(siteImage,'网站封面')}catch{siteImage=null}delete result.cover}loadedUrl=url.value.trim();ttl.value=book.title;auth.value=book.author;chosen=new Set(book.chapters.map((ch,i)=>ch.locked?-1:i).filter(i=>i>=0));if(result.resume){
+ const state=result.resume;ttl.value=state.title;auth.value=state.author;
+ chosen=new Set(state.indices);
+ for(const [i,name] of Object.entries(state.names))book.chapters[i].name=name;
+ if(state.picture)setCover(await imageFrom('data:image/png;base64,'+state.picture),state.cover_kind||'上次导出封面');
+ else setCover(null,'排版封面');
+ el('freshCatalog').hidden=false;
+ render();cover();msg('已恢复上次选择，正文已下载 '+state.completed+' / '+chosen.size+' 章。点击导出继续。');
+ delete result.resume;
+}else{render();cover();msg(book.adapter?'已使用 '+book.adapter+' 插件。':book.chapters.length===1?'已识别 1 个条目，请核对书名和章节。':'目录已载入。')}}catch(err){msg(err.message,true)}finally{reading=false;clearInterval(timer);el("bookMeter").hidden=true;el('cancel').hidden=true;busy=false;sync()}};
 el('all').onclick=()=>{chosen=new Set(book.chapters.map((ch,i)=>ch.locked?-1:i).filter(i=>i>=0));render()};el('none').onclick=()=>{chosen.clear();render()};
 el('cancel').onclick=async()=>{await pywebview.api.cancel();msg('正在取消…')};
 function bookProgress(done,total,phase){
@@ -206,317 +211,26 @@ function poll(read,paint){
  const timer=setInterval(tick,200);
  return ()=>{active=false;clearInterval(timer)}
 }
-// Paint the white architectural model once per viewport size.
-function libraryRoom(width,height){
- const room=document.createElement('canvas');
- room.width=width;room.height=height;
- const g=room.getContext('2d');
- const point=(x,y,z)=>[width*(.5+x/z),height*(.42+y/z)];
- function face(vertices,color){
-  g.beginPath();
-  vertices.forEach(([x,y,z],i)=>{const xy=point(x,y,z);if(i)g.lineTo(...xy);else g.moveTo(...xy)});
-  g.closePath();g.fillStyle=color;g.fill();
- }
- function block(x,y,z,dx,dy,dz,tone){
-  const a=x+dx,b=y+dy,c=z+dz;
-  face([[x,y,z],[a,y,z],[a,b,z],[x,b,z]],tone);
-  const side=x<0?a:x;
-  face([[side,y,z],[side,y,c],[side,b,c],[side,b,z]],x<0?'#d4dada':'#dce1e1');
-  face([[x,y,z],[x,y,c],[a,y,c],[a,y,z]],'#fcfdfc');
- }
- g.fillStyle='#f4f6f6';g.fillRect(0,0,width,height);
- face([[-4,1.2,1],[4,1.2,1],[4,1.2,12],[-4,1.2,12]],'#e6eaea');
- for(let bay=8;bay>=0;bay--){
-  const z=1.65+bay*.93;
-  for(const side of [-1,1]){
-   const x=side<0?-1.65:1.22;
-   block(x,-1.45,z,.43,2.65,.045,'#c5cece');
-   for(let row=0;row<5;row++){
-    const y=1.15-row*.52;
-    block(x,y,z,.43,.045,.91,'#e5e9e8');
-    for(let k=0;k<8;k++){
-     const seed=(bay*23+row*17+k*7)%13;
-     const h=.29+seed*.011;
-     block(x+.055,y-h,z+.07+k*.10,.32,h,.065+seed*.0018,seed%3?'#eef0ef':'#dce2e0');
-    }
-   }
-  }
- }
- const glow=g.createRadialGradient(width*.51,height*.35,0,width*.51,height*.35,width*.66);
- glow.addColorStop(0,'#ffffffd9');glow.addColorStop(1,'#ffffff1a');g.fillStyle=glow;g.fillRect(0,0,width,height);
- return room;
-}
-function bindBook(total){
- const scene=el('binding'),canvas=el('bindCanvas'),ctx=canvas.getContext('2d');
- const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
- const names=[...chosen].sort((a,b)=>a-b).map(i=>book.chapters[i].name);
- const preview=cv.getBoundingClientRect();
- const shell=document.querySelector('.shell');
- scene.hidden=false;
- shell.inert=true;
- document.body.classList.add('binding');
- const cancel=el('bindCancel');
- cancel.textContent="取消导出";cancel.disabled=false;
- cancel.onclick=()=>{cancel.disabled=true;el('cancel').click();el('bindPhase').textContent='正在取消…'};
- cancel.focus();
- el('bindPhase').textContent='正在读取章节';
- el('bindCount').textContent='0 / '+total+' 章';
- const textures=new Map(),excerpts=[];
- const coverFace=cv;
- const spine=document.createElement('canvas');
- spine.width=36;spine.height=cv.height;
- spine.getContext('2d').drawImage(cv,0,0,Math.max(1,cv.width*.08),cv.height,0,0,36,spine.height);
- const writing=document.createElement('canvas');
- writing.width=400;writing.height=552;
- const penInk=writing.getContext('2d');
- let room,front=0;
- function paper(page){
-  if(textures.has(page))return textures.get(page);
-  const sheet=document.createElement('canvas');
-  sheet.width=400;sheet.height=552;
-  const ink=sheet.getContext('2d');
-  const tint=ink.createLinearGradient(0,0,400,32);
-  tint.addColorStop(0,'#cdd5d6');tint.addColorStop(.09,'#f1f4f4');tint.addColorStop(1,'#fcfdfd');
-  ink.fillStyle=tint;ink.fillRect(0,0,400,552);
-  sheet.rows=[];
-  function printRow(text,y,size){
-   if(!text)return;
-   ink.fillText(text,45,y);
-   sheet.rows.push({y,size,width:ink.measureText(text).width});
-  }
-  if(page>0){
-   ink.fillStyle='#788487';ink.font='16px Georgia';ink.fillText(String(page).padStart(2,'0'),45,58);
-   ink.fillStyle='#3a474a';ink.font='bold 26px SimSun,serif';
-   let line='',y=115;
-   for(const c of names[page-1]||''){
-    if(ink.measureText(line+c).width>308){printRow(line,y,26);y+=37;line='';if(y>240)break}
-    line+=c;
-   }
-   printRow(line,y,26);
-   ink.fillStyle='#566367';ink.font='22px KaiTi, STKaiti, FangSong, serif';
-   y+=56;line='';
-   for(const c of excerpts[page-1]||''){
-    if(ink.measureText(line+c).width>308){printRow(line,y,22);line='';y+=34;if(y>485)break}
-    line+=c;
-   }
-   if(line&&y<=485)printRow(line,y,22);
-  }
-  if(textures.size>8)textures.delete(textures.keys().next().value);
-  textures.set(page,sheet);return sheet;
- }
- const started=performance.now();
- let collected=0,landed=0,next=0,phase='idle',since=started,raf,closing=0;
- const bounded=t=>Math.max(0,Math.min(1,t));
- const ease=t=>t*t*(3-2*t);
-
- let w,h,scale,cx,cy;
- function project(x,y,z){
-  const depth=1+z*.06;
-  return [cx+scale*((x*.95+y*.15-z*.14)*depth*(1-front)+x*front),cy+scale*((y*.85-x*.12-z*.53)*depth*(1-front)+y*front)];
- }
- // Map narrow strips of a printed page onto a bending surface, including the back.
- function drawSheet(texture,edge,shade=true){
-  const strips=32;
-  let a=edge(0,-.69),b=edge(0,.69);
-  for(let i=0;i<strips;i++){
-   const u=(i+1)/strips,c=edge(u,-.69),d=edge(u,.69);
-   const dx=c[0]-a[0],dy=c[1]-a[1],vx=b[0]-a[0],vy=b[1]-a[1];
-   const det=dx*vy-dy*vx;
-   if(Math.abs(det)>.01){
-    ctx.save();
-    ctx.transform(dx,dy,vx,vy,a[0],a[1]);
-    if(det>0)ctx.drawImage(texture,i*texture.width/strips,0,texture.width/strips,texture.height,0,0,1.12,1);
-    else if(texture===coverFace){ctx.fillStyle='#e3e8e9';ctx.fillRect(0,0,1.12,1)}
-    else{
-     ctx.translate(1,0);ctx.scale(-1,1);
-     ctx.drawImage(texture,(strips-1-i)*texture.width/strips,0,texture.width/strips,texture.height,-.12,0,1.12,1);
-    }
-    if(shade){
-     const light=Math.min(.23,Math.abs(dy)/(Math.abs(dx)+Math.abs(dy)+.01)*.25);
-     ctx.fillStyle='rgba(62,75,80,'+light+')';ctx.fillRect(0,0,1.12,1);
-    }
-    ctx.restore();
-   }
-   a=c;b=d;
-  }
- }
- function inscribe(page,t){
-  const printed=paper(page),rows=printed.rows;
-  if(!rows.length)return;
-  penInk.drawImage(paper(0),0,0);
-  penInk.drawImage(printed,0,0,400,74,0,0,400,74);
-  const liftLength=46;
-  let distance=t*rows.reduce((sum,row,i)=>sum+row.width+(i?liftLength:0),0);
-  let x=45,y=rows[0].y,lift=0;
-  for(const [i,row] of rows.entries()){
-   const width=Math.min(distance,row.width);
-   if(width>0){
-    const top=row.y-row.size-2,height=row.size+9;
-    penInk.drawImage(printed,44,top,width+1,height,44,top,width+1,height);
-   }
-   x=45+width;y=row.y-4;
-   if(distance<=row.width)break;
-   distance-=row.width;
-   if(i+1<rows.length&&distance<liftLength){
-    const f=ease(distance/liftLength);
-    x-=row.width*f;y+=(rows[i+1].y-row.y)*f;lift=Math.sin(Math.PI*f)*.065;break;
-   }
-   distance-=liftLength;
-  }
-  drawSheet(writing,(u,v)=>project(u,v,.012),false);
-  const quiver=lift?0:Math.sin(distance*.63)*2;
-  const tip=project(x/400,(y+quiver)/400-.69,.014+lift);
-  ctx.save();ctx.translate(tip[0]+2,tip[1]+2);ctx.scale(scale/245,scale/245);
-  ctx.rotate(.64);ctx.fillStyle='rgba(50,61,63,.10)';ctx.beginPath();
-  ctx.ellipse(0,-22,2.1,23,0,0,Math.PI*2);ctx.fill();ctx.restore();
-  ctx.save();ctx.translate(...tip);ctx.scale(scale/245,scale/245);
-  ctx.rotate(.52+quiver*.012);
-  const lacquer=ctx.createLinearGradient(-5,0,5,0);
-  lacquer.addColorStop(0,'#283737');lacquer.addColorStop(.43,'#82908b');lacquer.addColorStop(.66,'#3f5150');lacquer.addColorStop(1,'#243331');
-  ctx.fillStyle=lacquer;ctx.beginPath();ctx.roundRect(-4.5,-86,9,69,4);ctx.fill();
-  ctx.fillStyle='#b9ada0';ctx.fillRect(-4.5,-24,9,2);
-  ctx.beginPath();ctx.moveTo(-3.5,-18);ctx.quadraticCurveTo(-5,-11,0,0);ctx.quadraticCurveTo(5,-11,3.5,-18);ctx.fill();
-  ctx.strokeStyle='#485150';ctx.lineWidth=.75;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-10);ctx.stroke();ctx.restore();
- }
- function frame(now){
-  const rect=canvas.getBoundingClientRect();
-  w=rect.width;h=rect.height;
-  const ratio=Math.min(devicePixelRatio||1,2);
-  if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){
-   canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
-  }
-  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
-  if(!room||room.width!==Math.round(w)||room.height!==Math.round(h))room=libraryRoom(Math.round(w),Math.round(h));
-  ctx.drawImage(room,0,0,w,h);
-  scale=Math.min(w*.255,h*.315,275);
-  cx=w*.50;cy=h*.455;
-  const ground=ctx.createRadialGradient(0,0,0,0,0,1);
-  ground.addColorStop(0,'#65727645');ground.addColorStop(1,'#0b201a00');
-  ctx.save();ctx.translate(cx,cy+scale*.71);ctx.scale(scale*1.15,scale*.18);
-  ctx.fillStyle=ground;ctx.fillRect(-1,-1,2,2);ctx.restore();
-  const age=now-started;
-  const fly=reduced?1:ease(bounded(age/510));
-  const rewindTime=Math.min(3600,Math.max(0,total-1)*250);
-  const elapsed=closing?(reduced?rewindTime+1400:now-closing):0;
-  const rewind=closing&&elapsed<rewindTime;
-  const position=rewind?(total-1)*elapsed/rewindTime:0;
-  const right=closing?(rewind?total-Math.floor(position):1):landed;
-  const close=closing?ease(bounded((elapsed-rewindTime)/680)):0;
-  front=closing?ease(bounded((elapsed-rewindTime-360)/650)):0;
-  const travel=closing?0:1-fly;
-  const open=(reduced?1:ease(bounded((age-350)/620)))*(1-close);
-  cx-=scale*.5*front;
-  cy+=reduced?0:Math.sin(age/1050)*5;
-
-  scale+=(preview.width-scale)*travel;
-  cx+=(preview.left-cx)*travel;cy+=(preview.top-rect.top+preview.height/2-cy)*travel;
-  function flat(texture,side,z){
-   drawSheet(texture,(u,y)=>project(side<0?u-1:u,y,z),false);
-  }
-  // A cloth cover and a few exposed leaves give the floating book a visible fore edge.
-  const sides=open>.95?[-1,1]:[1];
-  for(const side of sides){
-   for(const [z,color,margin] of [[-.079,'#afbabc',.025],[-.062,'#bcc5c7',.008],[-.042,'#f4f6f6',.006],[-.025,'#cdd5d6',.003]]){
-    const outer=side*(1+margin);
-    const corners=[[0,-.69-margin],[outer,-.69-margin],[outer,.69+margin],[0,.69+margin]];
-    ctx.beginPath();
-    corners.forEach(([x,y],i)=>{const point=project(x,y,z);if(i)ctx.lineTo(...point);else ctx.moveTo(...point)});
-    ctx.closePath();ctx.fillStyle=color;ctx.fill();
-   }
-  }
-  flat(paper(0),1,-.014);
-  if(open>.95){
-   flat(paper(0),-1,-.035);
-   flat(paper(Math.max(0,right-(rewind?2:1))),-1,0);
-  }
-  flat(paper(closing?right:phase==='idle'?landed:0),1,0);
-  if(rewind){
-   const t=1-(position%1);
-   drawSheet(paper(right-1),(u,y)=>{
-    const angle=Math.PI*ease(t)+.55*Math.sin(Math.PI*t)*(1-u);
-    return project(u*Math.cos(angle),y,u*Math.sin(angle)+.025);
-   });
-  }
-  // Wrap a strip of the actual jacket around the rounded binding.
-  const spineWidth=.052*(1-open)+.009;
-  drawSheet(spine,(u,y)=>project((u-1)*spineWidth,y,-.007+.012*Math.sin(u*Math.PI)),true);
-  if(front===1){
-   ctx.drawImage(coverFace,cx,cy-scale*.69,scale,scale*1.38);
-  }else if(open<.99){
-   drawSheet(coverFace,(u,y)=>project(u*Math.cos(open*Math.PI),y,.015+u*Math.sin(open*Math.PI)),false);
-  }
-  if(!closing&&open>=.99){
-   if(phase==='idle'&&collected>landed){
-    next=collected-landed>4?collected:landed+1;
-    phase=landed?'turn':'write';since=now;
-   }
-   const fast=collected-landed>1;
-   if(phase==='turn'){
-    const t=reduced?1:bounded((now-since)/(fast?260:500));
-    drawSheet(paper(landed),(u,y)=>{
-     const angle=Math.PI*ease(t)+.66*Math.sin(Math.PI*t)*(1-u);
-     return project(u*Math.cos(angle),y,u*Math.sin(angle)+.025);
-    });
-    if(t>=1){phase='write';since=now}
-   }
-   if(phase==='write'){
-    if(landed)flat(paper(landed),-1,.005);
-    const t=reduced?1:bounded((now-since)/(fast?680:1580));
-    inscribe(next,t);
-    if(t>=1){landed=next;phase='idle'}
-   }
-  }
-
-  if(!(reduced&&closing))raf=requestAnimationFrame(frame);
- }
- frame(started);
- return {update(count,title,message,excerpt,all){
-  if(all){all.forEach((value,i)=>{if(excerpts[i]!==value)textures.delete(i+1);excerpts[i]=value})}
-  else if(excerpt&&excerpts[count-1]!==excerpt){excerpts[count-1]=excerpt;textures.delete(count)}
-  collected=Math.max(collected,count||0);
-  el('bindCount').textContent=collected+' / '+total+' 章';
-  if(!cancel.disabled)el('bindPhase').textContent=message||title||'正在装订';
- },async finish(saved){
-  cancel.disabled=true;
-  try{
-   if(saved){
-    const deadline=performance.now()+2750;
-    while(!reduced&&landed<collected&&performance.now()<deadline&&!document.hidden)
-     await new Promise(resolve=>setTimeout(resolve,45));
-    closing=performance.now();landed=total;phase='idle';
-    el('bindPhase').textContent=el('status').textContent;
-    el('bindCount').textContent='已保存 EPUB';
-    cancel.textContent='返回工作台';cancel.disabled=false;cancel.focus();
-    await new Promise(resolve=>{cancel.onclick=resolve});
-   }
-  }finally{
-   cancelAnimationFrame(raf);scene.hidden=true;shell.inert=false;
-   document.body.classList.remove('binding');
-  }
- }};
-}
 el('export').onclick=async()=>{
- busy=true;sync();const total=chosen.size;let binding;
+ busy=true;sync();const total=chosen.size;
  bookProgress(0,0,'等待选择保存位置');el('cancel').hidden=false;msg('');
  const stop=poll(()=>pywebview.api.progress(),v=>{
   if(v.kind!=='export'||!v.chapter)return;
-  binding??=bindBook(total);
-  binding.update(v.collected,v.last_title,v.chapter,v.excerpt);
-  bookProgress(v.collected,total,v.done===total?'正在写入电子书':'正在下载章节');
+  bookProgress(v.done,total,v.done===total?'正在写入电子书':'正在下载章节');
   msg(v.chapter)
  });
  let saved=false;
  try{
-  const res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1],Object.fromEntries([...chosen].map(i=>[i,book.chapters[i].name])));
+  const res=await pywebview.api.export(ttl.value.trim(),auth.value.trim(),[...chosen],cv.toDataURL().split(',')[1],Object.fromEntries([...chosen].map(i=>[i,book.chapters[i].name])),el('coverLabel').textContent);
   if(res.error)throw Error(res.error);
-  saved=Boolean(res.path);if(saved){binding??=bindBook(total);binding.update(total,book.chapters[Math.max(...chosen)].name,null,null,res.excerpts);bookProgress(total,total,'已保存 EPUB')}
+  saved=Boolean(res.path);if(saved)bookProgress(total,total,'已保存 EPUB');
   if(saved){
    const chapters=[...new Set(res.missing)];
-   const warning=chapters.length?'；'+res.missing.length+' 处插图未能下载（'+chapters.slice(0,3).join('、')+(chapters.length>3?' 等':'')+'）':'';
+   const warning=chapters.length?'；'+res.missing.length+' 处插图未能下载（'+chapters.slice(0,3).join('、')+(chapters.length>3?' 等':'')+'），再次导出可补收':'';
    msg('已保存至 '+res.path+(res.images?' · 已嵌入 '+res.images+' 张插图':'')+warning,Boolean(warning))
-  }else msg('已取消导出。')
+  }else msg('已取消导出。已下载的内容可在下次导出时继续使用。')
  }catch(err){msg(err.message,true)}
- finally{stop();el('cancel').hidden=true;try{await binding?.finish(saved)}finally{busy=false;el('bookMeter').hidden=!saved;sync()}}
+ finally{stop();busy=false;el('bookMeter').hidden=!saved;el('cancel').hidden=true;sync()}
 };
 let checking=false, downloading=false, newVersion='';
 async function checkUpdates(manual){

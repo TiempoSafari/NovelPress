@@ -2,6 +2,8 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import json
+from checkpoint import retry_network
 import re
 from dataclasses import dataclass
 from io import BytesIO
@@ -89,7 +91,8 @@ def read_image(url, referer, cookies, check, session=None):
 
 
 class ImageArchive:
-    def __init__(self, book, cookies, check, workers=4):
+    def __init__(self, book, cookies, check, workers=4, checkpoint=None):
+        self.checkpoint = checkpoint
         self.book = book
         self.cookies = cookies
         self.check = check
@@ -135,20 +138,30 @@ class ImageArchive:
 
     def _download(self, image):
         thread_cookies = self.cookies.copy() if self.cookies is not None else None
+        key = hashlib.sha256(json.dumps(self._key(image)).encode()).hexdigest()
+        cached = self.checkpoint.get("image", key) if self.checkpoint else None
+        if cached:
+            format_bytes, data = cached.split(b"\n", 1)
+            return self._stage(data, format_bytes.decode("ascii"))
         for url in image.sources:
             self.check()
             try:
-                data, fmt = read_image(url, image.referer, thread_cookies, self.check, self._session())
+                data, fmt = retry_network(lambda: read_image(url, image.referer, thread_cookies, self.check, self._session()), self.check)
             except InterruptedError:
                 raise
             except (requests.RequestException, ValueError, OSError, Image.DecompressionBombError, SyntaxError):
                 continue
             self.check()
-            digest = hashlib.sha256(data).hexdigest()
-            path = Path(self._temporary.name) / (uuid.uuid4().hex + "." + fmt)
-            path.write_bytes(data)
-            return str(path), fmt, digest
+            if self.checkpoint:
+                self.checkpoint.put("image", key, fmt.encode("ascii") + b"\n" + data)
+            return self._stage(data, fmt)
         return None
+
+    def _stage(self, data, fmt):
+        digest = hashlib.sha256(data).hexdigest()
+        path = Path(self._temporary.name) / (uuid.uuid4().hex + "." + fmt)
+        path.write_bytes(data)
+        return str(path), fmt, digest
 
     def set_progress_callback(self, callback):
         """Report completed image downloads once the complete denominator is known."""
