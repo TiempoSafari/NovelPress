@@ -1,9 +1,14 @@
 """Artwork discovery and EPUB-local image resources."""
 import base64
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import re
 from dataclasses import dataclass
 from io import BytesIO
+from pathlib import Path
+import tempfile
+import threading
+import uuid
 from urllib.parse import unquote_to_bytes, urldefrag, urljoin, urlsplit
 from xml.sax.saxutils import quoteattr
 from zipfile import ZIP_STORED
@@ -46,7 +51,7 @@ def illustration(tag, base, referer):
     return Illustration(addresses, referer, tag.get("alt") or "章节插图")
 
 
-def read_image(url, referer, cookies, check):
+def read_image(url, referer, cookies, check, session=None):
     scheme = urlsplit(url).scheme
     if scheme == "data":
         header, _, encoded = url.partition(",")
@@ -56,8 +61,9 @@ def read_image(url, referer, cookies, check):
     elif scheme in ("http", "https"):
         # Send account cookies only for HTTPS requests to ESJ itself.
         jar = cookies if scheme == "https" and urlsplit(url).hostname in ("esjzone.cc", "www.esjzone.cc") else None
-        with requests.get(url, headers={"Referer": referer}, cookies=jar,
-                          stream=True, timeout=(5, 18)) as reply:
+        client = session or requests
+        with client.get(url, headers={"Referer": referer}, cookies=jar,
+                        stream=True, timeout=(5, 18)) as reply:
             reply.raise_for_status()
             data = bytearray()
             for chunk in reply.iter_content(65536):
@@ -83,31 +89,110 @@ def read_image(url, referer, cookies, check):
 
 
 class ImageArchive:
-    def __init__(self, book, cookies, check):
+    def __init__(self, book, cookies, check, workers=4):
         self.book = book
         self.cookies = cookies
         self.check = check
         self.paths = {}
         self.manifest = {}
         self.missing = []
+        self._executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="novelpress-image")
+        self._temporary = tempfile.TemporaryDirectory(prefix="novelpress-images-")
+        self._futures = {}
+        self._local = threading.local()
+        self._sessions = []
+        self._sessions_lock = threading.Lock()
+        self._progress_lock = threading.Lock()
+        self._progress_done = 0
+        self._progress_callback = None
 
-    def render(self, image, chapter):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        self._executor.shutdown(wait=True, cancel_futures=True)
+        for session in self._sessions:
+            session.close()
+        self._temporary.cleanup()
+
+    def _session(self):
+        session = getattr(self._local, "session", None)
+        if session is None:
+            session = requests.Session()
+            self._local.session = session
+            with self._sessions_lock:
+                self._sessions.append(session)
+        return session
+
+    def _key(self, image):
+        return image.sources, image.referer
+
+    def prefetch(self, image):
+        """Start downloading an image in the background, deduplicating repeated references."""
+        key = self._key(image)
+        if key not in self._futures:
+            self._futures[key] = self._executor.submit(self._download, image)
+
+    def _download(self, image):
+        thread_cookies = self.cookies.copy() if self.cookies is not None else None
         for url in image.sources:
             self.check()
-            path = self.paths.get(url)
-            if not path:
-                try:
-                    data, fmt = read_image(url, image.referer, self.cookies, self.check)
-                except InterruptedError:
-                    raise
-                except (ValueError, OSError, Image.DecompressionBombError, SyntaxError):
-                    continue
-                digest = hashlib.sha256(data).hexdigest()
+            try:
+                data, fmt = read_image(url, image.referer, thread_cookies, self.check, self._session())
+            except InterruptedError:
+                raise
+            except (requests.RequestException, ValueError, OSError, Image.DecompressionBombError, SyntaxError):
+                continue
+            self.check()
+            digest = hashlib.sha256(data).hexdigest()
+            path = Path(self._temporary.name) / (uuid.uuid4().hex + "." + fmt)
+            path.write_bytes(data)
+            return str(path), fmt, digest
+        return None
+
+    def set_progress_callback(self, callback):
+        """Report completed image downloads once the complete denominator is known."""
+        self._progress_callback = callback
+        total = len(self._futures)
+        if not total:
+            return
+        for future in self._futures.values():
+            future.add_done_callback(lambda _future, count=total: self._image_finished(count))
+
+    def _image_finished(self, total):
+        with self._progress_lock:
+            self._progress_done += 1
+            done = self._progress_done
+            if self._progress_callback:
+                self._progress_callback(done, total)
+
+    def render(self, image, chapter):
+        self.check()
+        key = self._key(image)
+        path = self.paths.get(key)
+        if path is None:
+            future = self._futures.get(key)
+            if future is None:
+                self.prefetch(image)
+                future = self._futures[key]
+            try:
+                result = future.result()
+            except InterruptedError:
+                raise
+            except Exception:
+                result = None
+            if result:
+                staged, fmt, digest = result
                 path = f"images/{digest}.{fmt}"
                 if path not in self.manifest:
-                    self.book.writestr(path, data, compress_type=ZIP_STORED)
+                    with open(staged, "rb") as data:
+                        self.book.writestr(path, data.read(), compress_type=ZIP_STORED)
                     self.manifest[path] = f'<item id="i{digest}" href="{path}" media-type="image/{fmt}"/>'
-                self.paths[url] = path
+                self.paths[key] = path
+                Path(staged).unlink(missing_ok=True)
+            else:
+                self.paths[key] = ""
+        if path:
             alt = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]", "", image.alt)
             return f'<img src="{path}" alt={quoteattr(alt)}/>'
         self.missing.append(chapter)

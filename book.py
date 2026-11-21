@@ -265,16 +265,16 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
     uid = uuid.uuid4()
     chapter_urls = {urldefrag(ch["url"])[0] for ch in chapters}
     items, spine, links = [], [], []
-    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as book:
-        images = ImageArchive(book, esj_cookies, check)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as book, ImageArchive(book, esj_cookies, check) as images:
         book.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
         book.writestr("META-INF/container.xml", '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
         book.writestr("cover.png", cover)
         book.writestr("cover.xhtml", xhtml(title, '<div style="text-align:center"><img src="cover.png" alt="封面" style="max-width:100%;max-height:95vh"/></div>'))
         book.writestr("book.css", "body{margin:5%;line-height:1.75}h1{font-size:1.5em}p{text-indent:2em;margin:.5em 0}p.art{text-indent:0}img{max-width:100%;height:auto}")
+        prepared = []
         for i, ch in enumerate(chapters, 1):
             check()
-            progress(i - 1, ch["name"])
+            progress(i - 1, f"正在读取《{ch['name']}》· 插图后台并行下载中")
             address, fragment = urldefrag(ch["url"])
             try:
                 if address != cache_url or cached is None:
@@ -289,14 +289,23 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                 raise
             except Exception as error:
                 raise ValueError(f'《{ch["name"]}》读取失败：{error}') from error
+            for paragraph in paragraphs:
+                if not isinstance(paragraph, str):
+                    for run in paragraph:
+                        if isinstance(run, Illustration):
+                            images.prefetch(run)
+            prepared.append((i, ch, paragraphs))
+
+        written = len(prepared)
+
+        def image_progress(done, total):
+            progress(written, f"插图处理完成（{done}/{total}）")
+
+        images.set_progress_callback(image_progress)
+        for i, ch, paragraphs in prepared:
+            check()
             name = xml(ch["name"])
             body = [f"<h1>{name}</h1>"]
-            image_total = sum(
-                isinstance(run, Illustration)
-                for paragraph in paragraphs if not isinstance(paragraph, str)
-                for run in paragraph
-            )
-            image_done = 0
             for paragraph in paragraphs:
                 if isinstance(paragraph, str):
                     body.append(f"<p>{xml(paragraph)}</p>")
@@ -304,8 +313,6 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
                     content_parts = []
                     for run in paragraph:
                         if isinstance(run, Illustration):
-                            image_done += 1
-                            progress(i - 1, f"{ch['name']} · 正在收录插图（{image_done}/{image_total}）")
                             content_parts.append(images.render(run, ch["name"]))
                         elif isinstance(run, InlineText):
                             content_parts.append(run.render())
@@ -318,6 +325,8 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None)
             items.append(f'<item id="c{i}" href="ch{i}.xhtml" media-type="application/xhtml+xml"/>')
             spine.append(f'<itemref idref="c{i}"/>')
             links.append(f'<li><a href="ch{i}.xhtml">{name}</a></li>')
+            written = i
+            progress(written, f"正在整理章节（{written}/{len(chapters)}）")
         progress(len(chapters), "正在生成 EPUB 目录")
         check()
         book.writestr("nav.xhtml", xhtml("目录", '<nav epub:type="toc"><h1>目录</h1><ol>'+ "".join(links) + "</ol></nav>"))
