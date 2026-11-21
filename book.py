@@ -296,7 +296,16 @@ def write_book(path, title, author, chapters, cover, progress, check, rule=None,
                             images.prefetch(run)
             prepared.append((i, ch, paragraphs))
             if chapter_ready:
-                chapter_ready(i, ch["name"])
+                excerpt = ""
+                for paragraph in paragraphs:
+                    text = paragraph if isinstance(paragraph, str) else "".join(
+                        run if isinstance(run, str) else run.text if isinstance(run, InlineText) else ""
+                        for run in paragraph)
+                    if text.strip():
+                        excerpt = (excerpt + " " + text.strip())[:280]
+                    if len(excerpt) == 280:
+                        break
+                chapter_ready(i, ch["name"], excerpt.strip())
 
         written = len(prepared)
 
