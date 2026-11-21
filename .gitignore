@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.spec
+artifacts/
+build/
+obj/
+.venv/
+*.wixpdb

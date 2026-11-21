@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "name": "银龙诺艾尔 SilverNoelle",
+  "catalog": "body.category",
+  "title": "h1.page-title span",
+  "links": "article.type-post .entry-title a[href]",
+  "older": ".posts-navigation .nav-previous a[href], #nav-below .nav-previous a[href], .navigation .nav-previous a[href]",
+  "first_page_suffix": "/page/[0-9]+/?$",
+  "order": "reverse",
+  "chapter_title": "article.type-post .entry-title",
+  "body": "article.type-post .entry-content",
+  "remove": "#jp-post-flair, .sharedaddy, .wpcnt, .wp-block-jetpack-related-posts, .jp-relatedposts, .wordads-ad-wrapper, [id^='wordads-']"
+}

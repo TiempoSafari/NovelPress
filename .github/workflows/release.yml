@@ -1,0 +1,41 @@
+name: Publish Windows installer
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Check release tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($env:GITHUB_REF -ne "refs/tags/v$version") { throw "Select the tag matching VERSION" }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt "pyinstaller>=6.12,<7"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          dotnet tool install wix --tool-path "$env:RUNNER_TEMP/wix-tools" --version 5.0.2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $wix = "$env:RUNNER_TEMP/wix-tools/wix.exe"
+          & $wix extension add -g WixToolset.UI.wixext/5.0.2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ./package.ps1 -Wix $wix
+      - name: Publish stable release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          gh release create "v$version" "artifacts/NovelPress-$version-x64.msi" --verify-tag --title "拾卷 $version" --generate-notes
