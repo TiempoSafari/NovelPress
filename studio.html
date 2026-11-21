@@ -246,83 +246,6 @@ function libraryRoom(width,height){
  glow.addColorStop(0,'#ffffffd9');glow.addColorStop(1,'#ffffff1a');g.fillStyle=glow;g.fillRect(0,0,width,height);
  return room;
 }
-// Cross-section of an inextensible sheet. Integrate in book coordinates, with z up.
-function fallingLeaf(direction,serial){
- const segments=16,step=1/120,length=1/segments;
- const sign=direction[0]<0?-1:1;
- const angle=sign*(serial%3===1?2.3:1.05);
- let time=0;
- const nodes=Array.from({length:segments+1},(_,i)=>{
-  const u=i/segments-.5;
-  const dx=u*Math.cos(angle),dz=u*Math.sin(angle);
-  const spin=-sign*(serial%3===1?4.6:2.2);
-  const x=.5+direction[0]*1.85+dx,y=direction[1]*1.45,z=1.22+dz;
-  return {x,y,z,px:x-step*(-direction[0]*1.45-spin*dz),
-   py:y+step*direction[1],pz:z-step*(spin*dx-.25)};
- });
- function integrate(){
-  time+=step;
-  for(let i=0;i<=segments;i++){
-   const n=nodes[i],u=i/segments;
-   const a=nodes[Math.max(0,i-1)],b=nodes[Math.min(segments,i+1)];
-   const dx=b.x-a.x,dz=b.z-a.z,norm=Math.hypot(dx,dz)||1;
-   const nx=-dz/norm,nz=dx/norm;
-   const vx=(n.x-n.px)/step,vy=(n.y-n.py)/step,vz=(n.z-n.pz)/step;
-   const wind=.54*Math.sin(2.8*time+serial)+.35*direction[0];
-   const normalSpeed=(vx-wind)*nx+vz*nz;
-   const drag=-1.35*normalSpeed*Math.abs(normalSpeed);
-   const landing=Math.min(1,time/.95);
-   n.ax=drag*nx-.65*vx+landing*(7*(u-n.x)-3.3*vx);
-   n.ay=-.8*vy+landing*(-7*n.y-3.2*vy);
-   n.az=-3.8+drag*nz-.32*vz;
-   if(i>0&&i<segments){
-    n.ax+=60*(a.x+b.x-2*n.x);
-    n.az+=60*(a.z+b.z-2*n.z);
-   }
-  }
-  for(const n of nodes){
-   const {x,y,z}=n;
-   n.x+=x-n.px+n.ax*step*step;n.y+=y-n.py+n.ay*step*step;n.z+=z-n.pz+n.az*step*step;
-   n.px=x;n.py=y;n.pz=z;
-  }
-  for(let pass=0;pass<8;pass++){
-   for(let j=0;j<segments;j++){
-    const i=pass%2?segments-j-1:j,a=nodes[i],b=nodes[i+1];
-    const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
-    const k=.5*(1-length/(Math.hypot(dx,dy,dz)||length));
-    a.x+=dx*k;a.y+=dy*k;a.z+=dz*k;b.x-=dx*k;b.y-=dy*k;b.z-=dz*k;
-   }
-   for(const n of nodes)if(n.z<.012){n.z=.012;n.pz=.012}
-  }
- }
- return function pose(seconds){
-  while(time+step<=seconds)integrate();
-  return (u,y)=>{
-   const at=u*segments,i=Math.min(segments-1,Math.floor(at)),a=nodes[i],b=nodes[i+1],f=at-i;
-   const mix=key=>a[key]+(b[key]-a[key])*f;
-   // Registration with the stack spreads from the gutter to the free edge.
-   const blend=Math.max(0,Math.min(1,(seconds-1.06-.16*u)/.52));
-   const k=blend*blend*(3-2*blend);
-   return [mix('x')*(1-k)+u*k,y+mix('y')*(1-k),mix('z')*(1-k)+.012*k];
-  };
- };
-}
-function modelCover(title,author){
- const face=document.createElement('canvas');face.width=480;face.height=662;
- const g=face.getContext('2d'),cloth=g.createLinearGradient(0,0,480,80);
- for(const [stop,color] of [[0,'#bbc4c6'],[.035,'#f7f9f9'],[.055,'#d1d8d9'],[.075,'#f2f5f5'],[1,'#e4e9ea']])cloth.addColorStop(stop,color);
- g.fillStyle=cloth;g.fillRect(0,0,480,662);
- g.strokeStyle='#c1cbcd';g.strokeRect(54,34,390,594);
- g.fillStyle='#445257';g.font='bold 38px SimSun,serif';
- let line='',y=183;
- for(const char of title){
-  if(g.measureText(line+char).width>320){g.fillText(line,82,y);line='';y+=52;if(y>425)break}
-  line+=char;
- }
- if(line)g.fillText(line,82,y);
- g.fillStyle='#738084';g.fillRect(83,y+39,46,2);g.font='21px SimSun,serif';g.fillText(author,82,y+89,315);
- return face;
-}
 function bindBook(total){
  const scene=el('binding'),canvas=el('bindCanvas'),ctx=canvas.getContext('2d');
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -339,8 +262,14 @@ function bindBook(total){
  el('bindPhase').textContent='正在读取章节';
  el('bindCount').textContent='0 / '+total+' 章';
  const textures=new Map(),excerpts=[];
- const coverFace=modelCover(ttl.value.trim(),auth.value.trim());
- let room,front=0,leafMotion;
+ const coverFace=cv;
+ const spine=document.createElement('canvas');
+ spine.width=36;spine.height=cv.height;
+ spine.getContext('2d').drawImage(cv,0,0,Math.max(1,cv.width*.08),cv.height,0,0,36,spine.height);
+ const writing=document.createElement('canvas');
+ writing.width=400;writing.height=552;
+ const penInk=writing.getContext('2d');
+ let room,front=0;
  function paper(page){
   if(textures.has(page))return textures.get(page);
   const sheet=document.createElement('canvas');
@@ -349,31 +278,37 @@ function bindBook(total){
   const tint=ink.createLinearGradient(0,0,400,32);
   tint.addColorStop(0,'#cdd5d6');tint.addColorStop(.09,'#f1f4f4');tint.addColorStop(1,'#fcfdfd');
   ink.fillStyle=tint;ink.fillRect(0,0,400,552);
+  sheet.rows=[];
+  function printRow(text,y,size){
+   if(!text)return;
+   ink.fillText(text,45,y);
+   sheet.rows.push({y,size,width:ink.measureText(text).width});
+  }
   if(page>0){
    ink.fillStyle='#788487';ink.font='16px Georgia';ink.fillText(String(page).padStart(2,'0'),45,58);
    ink.fillStyle='#3a474a';ink.font='bold 26px SimSun,serif';
    let line='',y=115;
    for(const c of names[page-1]||''){
-    if(ink.measureText(line+c).width>308){ink.fillText(line,45,y);y+=37;line='';if(y>240)break}
+    if(ink.measureText(line+c).width>308){printRow(line,y,26);y+=37;line='';if(y>240)break}
     line+=c;
    }
-   ink.fillText(line,45,y);
+   printRow(line,y,26);
    ink.fillStyle='#566367';ink.font='22px KaiTi, STKaiti, FangSong, serif';
    y+=56;line='';
    for(const c of excerpts[page-1]||''){
-    if(ink.measureText(line+c).width>308){ink.fillText(line,45,y);line='';y+=34;if(y>485)break}
+    if(ink.measureText(line+c).width>308){printRow(line,y,22);line='';y+=34;if(y>485)break}
     line+=c;
    }
-   if(line&&y<=485)ink.fillText(line,45,y);
+   if(line&&y<=485)printRow(line,y,22);
   }
   if(textures.size>8)textures.delete(textures.keys().next().value);
   textures.set(page,sheet);return sheet;
  }
  const started=performance.now();
- let collected=0,landed=0,next=0,phase='idle',since=started,raf,closing=0,sequence=0;
+ let collected=0,landed=0,next=0,phase='idle',since=started,raf,closing=0;
  const bounded=t=>Math.max(0,Math.min(1,t));
  const ease=t=>t*t*(3-2*t);
- const directions=[[1,-.75],[-1,.65],[-.28,-1],[.4,1],[-1,-.55],[1,.6],[0,1],[-1,0]];
+
  let w,h,scale,cx,cy;
  function project(x,y,z){
   const depth=1+z*.06;
@@ -405,6 +340,44 @@ function bindBook(total){
    a=c;b=d;
   }
  }
+ function inscribe(page,t){
+  const printed=paper(page),rows=printed.rows;
+  if(!rows.length)return;
+  penInk.drawImage(paper(0),0,0);
+  penInk.drawImage(printed,0,0,400,74,0,0,400,74);
+  const liftLength=46;
+  let distance=t*rows.reduce((sum,row,i)=>sum+row.width+(i?liftLength:0),0);
+  let x=45,y=rows[0].y,lift=0;
+  for(const [i,row] of rows.entries()){
+   const width=Math.min(distance,row.width);
+   if(width>0){
+    const top=row.y-row.size-2,height=row.size+9;
+    penInk.drawImage(printed,44,top,width+1,height,44,top,width+1,height);
+   }
+   x=45+width;y=row.y-4;
+   if(distance<=row.width)break;
+   distance-=row.width;
+   if(i+1<rows.length&&distance<liftLength){
+    const f=ease(distance/liftLength);
+    x-=row.width*f;y+=(rows[i+1].y-row.y)*f;lift=Math.sin(Math.PI*f)*.065;break;
+   }
+   distance-=liftLength;
+  }
+  drawSheet(writing,(u,v)=>project(u,v,.012),false);
+  const quiver=lift?0:Math.sin(distance*.63)*2;
+  const tip=project(x/400,(y+quiver)/400-.69,.014+lift);
+  ctx.save();ctx.translate(tip[0]+2,tip[1]+2);ctx.scale(scale/245,scale/245);
+  ctx.rotate(.64);ctx.fillStyle='rgba(50,61,63,.10)';ctx.beginPath();
+  ctx.ellipse(0,-22,2.1,23,0,0,Math.PI*2);ctx.fill();ctx.restore();
+  ctx.save();ctx.translate(...tip);ctx.scale(scale/245,scale/245);
+  ctx.rotate(.52+quiver*.012);
+  const lacquer=ctx.createLinearGradient(-5,0,5,0);
+  lacquer.addColorStop(0,'#283737');lacquer.addColorStop(.43,'#82908b');lacquer.addColorStop(.66,'#3f5150');lacquer.addColorStop(1,'#243331');
+  ctx.fillStyle=lacquer;ctx.beginPath();ctx.roundRect(-4.5,-86,9,69,4);ctx.fill();
+  ctx.fillStyle='#b9ada0';ctx.fillRect(-4.5,-24,9,2);
+  ctx.beginPath();ctx.moveTo(-3.5,-18);ctx.quadraticCurveTo(-5,-11,0,0);ctx.quadraticCurveTo(5,-11,3.5,-18);ctx.fill();
+  ctx.strokeStyle='#485150';ctx.lineWidth=.75;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-10);ctx.stroke();ctx.restore();
+ }
  function frame(now){
   const rect=canvas.getBoundingClientRect();
   w=rect.width;h=rect.height;
@@ -415,11 +388,11 @@ function bindBook(total){
   ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
   if(!room||room.width!==Math.round(w)||room.height!==Math.round(h))room=libraryRoom(Math.round(w),Math.round(h));
   ctx.drawImage(room,0,0,w,h);
-  scale=Math.min(w*.335,h*.405,355);
-  cx=w*.50;cy=h*.44;
+  scale=Math.min(w*.255,h*.315,275);
+  cx=w*.50;cy=h*.455;
   const ground=ctx.createRadialGradient(0,0,0,0,0,1);
-  ground.addColorStop(0,'#57636066');ground.addColorStop(1,'#0b201a00');
-  ctx.save();ctx.translate(cx,cy+scale*.76);ctx.scale(scale*1.15,scale*.18);
+  ground.addColorStop(0,'#65727645');ground.addColorStop(1,'#0b201a00');
+  ctx.save();ctx.translate(cx,cy+scale*.71);ctx.scale(scale*1.15,scale*.18);
   ctx.fillStyle=ground;ctx.fillRect(-1,-1,2,2);ctx.restore();
   const age=now-started;
   const fly=reduced?1:ease(bounded(age/510));
@@ -464,6 +437,9 @@ function bindBook(total){
     return project(u*Math.cos(angle),y,u*Math.sin(angle)+.025);
    });
   }
+  // Wrap a strip of the actual jacket around the rounded binding.
+  const spineWidth=.052*(1-open)+.009;
+  drawSheet(spine,(u,y)=>project((u-1)*spineWidth,y,-.007+.012*Math.sin(u*Math.PI)),true);
   if(front===1){
    ctx.drawImage(coverFace,cx,cy-scale*.69,scale,scale*1.38);
   }else if(open<.99){
@@ -472,8 +448,7 @@ function bindBook(total){
   if(!closing&&open>=.99){
    if(phase==='idle'&&collected>landed){
     next=collected-landed>4?collected:landed+1;
-    phase=landed?'turn':'fly';since=now;sequence++;
-    leafMotion=fallingLeaf(directions[(sequence-1)%directions.length],sequence);
+    phase=landed?'turn':'write';since=now;
    }
    const fast=collected-landed>1;
    if(phase==='turn'){
@@ -482,13 +457,12 @@ function bindBook(total){
      const angle=Math.PI*ease(t)+.66*Math.sin(Math.PI*t)*(1-u);
      return project(u*Math.cos(angle),y,u*Math.sin(angle)+.025);
     });
-    if(t>=1){phase='fly';since=now}
+    if(t>=1){phase='write';since=now}
    }
-   if(phase==='fly'){
+   if(phase==='write'){
     if(landed)flat(paper(landed),-1,.005);
-    const t=reduced?1:bounded((now-since)/(fast?780:1580));
-    const surface=leafMotion(t*1.78);
-    drawSheet(paper(next),(u,y)=>project(...surface(u,y)));
+    const t=reduced?1:bounded((now-since)/(fast?680:1580));
+    inscribe(next,t);
     if(t>=1){landed=next;phase='idle'}
    }
   }
