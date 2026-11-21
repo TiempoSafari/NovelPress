@@ -246,6 +246,83 @@ function libraryRoom(width,height){
  glow.addColorStop(0,'#ffffffd9');glow.addColorStop(1,'#ffffff1a');g.fillStyle=glow;g.fillRect(0,0,width,height);
  return room;
 }
+// Cross-section of an inextensible sheet. Integrate in book coordinates, with z up.
+function fallingLeaf(direction,serial){
+ const segments=16,step=1/120,length=1/segments;
+ const sign=direction[0]<0?-1:1;
+ const angle=sign*(serial%3===1?2.3:1.05);
+ let time=0;
+ const nodes=Array.from({length:segments+1},(_,i)=>{
+  const u=i/segments-.5;
+  const dx=u*Math.cos(angle),dz=u*Math.sin(angle);
+  const spin=-sign*(serial%3===1?4.6:2.2);
+  const x=.5+direction[0]*1.85+dx,y=direction[1]*1.45,z=1.22+dz;
+  return {x,y,z,px:x-step*(-direction[0]*1.45-spin*dz),
+   py:y+step*direction[1],pz:z-step*(spin*dx-.25)};
+ });
+ function integrate(){
+  time+=step;
+  for(let i=0;i<=segments;i++){
+   const n=nodes[i],u=i/segments;
+   const a=nodes[Math.max(0,i-1)],b=nodes[Math.min(segments,i+1)];
+   const dx=b.x-a.x,dz=b.z-a.z,norm=Math.hypot(dx,dz)||1;
+   const nx=-dz/norm,nz=dx/norm;
+   const vx=(n.x-n.px)/step,vy=(n.y-n.py)/step,vz=(n.z-n.pz)/step;
+   const wind=.54*Math.sin(2.8*time+serial)+.35*direction[0];
+   const normalSpeed=(vx-wind)*nx+vz*nz;
+   const drag=-1.35*normalSpeed*Math.abs(normalSpeed);
+   const landing=Math.min(1,time/.95);
+   n.ax=drag*nx-.65*vx+landing*(7*(u-n.x)-3.3*vx);
+   n.ay=-.8*vy+landing*(-7*n.y-3.2*vy);
+   n.az=-3.8+drag*nz-.32*vz;
+   if(i>0&&i<segments){
+    n.ax+=60*(a.x+b.x-2*n.x);
+    n.az+=60*(a.z+b.z-2*n.z);
+   }
+  }
+  for(const n of nodes){
+   const {x,y,z}=n;
+   n.x+=x-n.px+n.ax*step*step;n.y+=y-n.py+n.ay*step*step;n.z+=z-n.pz+n.az*step*step;
+   n.px=x;n.py=y;n.pz=z;
+  }
+  for(let pass=0;pass<8;pass++){
+   for(let j=0;j<segments;j++){
+    const i=pass%2?segments-j-1:j,a=nodes[i],b=nodes[i+1];
+    const dx=b.x-a.x,dy=b.y-a.y,dz=b.z-a.z;
+    const k=.5*(1-length/(Math.hypot(dx,dy,dz)||length));
+    a.x+=dx*k;a.y+=dy*k;a.z+=dz*k;b.x-=dx*k;b.y-=dy*k;b.z-=dz*k;
+   }
+   for(const n of nodes)if(n.z<.012){n.z=.012;n.pz=.012}
+  }
+ }
+ return function pose(seconds){
+  while(time+step<=seconds)integrate();
+  return (u,y)=>{
+   const at=u*segments,i=Math.min(segments-1,Math.floor(at)),a=nodes[i],b=nodes[i+1],f=at-i;
+   const mix=key=>a[key]+(b[key]-a[key])*f;
+   // Registration with the stack spreads from the gutter to the free edge.
+   const blend=Math.max(0,Math.min(1,(seconds-1.06-.16*u)/.52));
+   const k=blend*blend*(3-2*blend);
+   return [mix('x')*(1-k)+u*k,y+mix('y')*(1-k),mix('z')*(1-k)+.012*k];
+  };
+ };
+}
+function modelCover(title,author){
+ const face=document.createElement('canvas');face.width=480;face.height=662;
+ const g=face.getContext('2d'),cloth=g.createLinearGradient(0,0,480,80);
+ for(const [stop,color] of [[0,'#bbc4c6'],[.035,'#f7f9f9'],[.055,'#d1d8d9'],[.075,'#f2f5f5'],[1,'#e4e9ea']])cloth.addColorStop(stop,color);
+ g.fillStyle=cloth;g.fillRect(0,0,480,662);
+ g.strokeStyle='#c1cbcd';g.strokeRect(54,34,390,594);
+ g.fillStyle='#445257';g.font='bold 38px SimSun,serif';
+ let line='',y=183;
+ for(const char of title){
+  if(g.measureText(line+char).width>320){g.fillText(line,82,y);line='';y+=52;if(y>425)break}
+  line+=char;
+ }
+ if(line)g.fillText(line,82,y);
+ g.fillStyle='#738084';g.fillRect(83,y+39,46,2);g.font='21px SimSun,serif';g.fillText(author,82,y+89,315);
+ return face;
+}
 function bindBook(total){
  const scene=el('binding'),canvas=el('bindCanvas'),ctx=canvas.getContext('2d');
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -262,25 +339,26 @@ function bindBook(total){
  el('bindPhase').textContent='正在读取章节';
  el('bindCount').textContent='0 / '+total+' 章';
  const textures=new Map(),excerpts=[];
- let room,front=0;
+ const coverFace=modelCover(ttl.value.trim(),auth.value.trim());
+ let room,front=0,leafMotion;
  function paper(page){
   if(textures.has(page))return textures.get(page);
   const sheet=document.createElement('canvas');
   sheet.width=400;sheet.height=552;
   const ink=sheet.getContext('2d');
   const tint=ink.createLinearGradient(0,0,400,32);
-  tint.addColorStop(0,'#dfd2b9');tint.addColorStop(.09,'#f6ecd8');tint.addColorStop(1,'#fff9ea');
+  tint.addColorStop(0,'#cdd5d6');tint.addColorStop(.09,'#f1f4f4');tint.addColorStop(1,'#fcfdfd');
   ink.fillStyle=tint;ink.fillRect(0,0,400,552);
   if(page>0){
-   ink.fillStyle='#77674f';ink.font='16px Georgia';ink.fillText(String(page).padStart(2,'0'),45,58);
-   ink.fillStyle='#393d31';ink.font='bold 26px SimSun,serif';
+   ink.fillStyle='#788487';ink.font='16px Georgia';ink.fillText(String(page).padStart(2,'0'),45,58);
+   ink.fillStyle='#3a474a';ink.font='bold 26px SimSun,serif';
    let line='',y=115;
    for(const c of names[page-1]||''){
     if(ink.measureText(line+c).width>308){ink.fillText(line,45,y);y+=37;line='';if(y>240)break}
     line+=c;
    }
    ink.fillText(line,45,y);
-   ink.fillStyle='#5c584d';ink.font='22px KaiTi, STKaiti, FangSong, serif';
+   ink.fillStyle='#566367';ink.font='22px KaiTi, STKaiti, FangSong, serif';
    y+=56;line='';
    for(const c of excerpts[page-1]||''){
     if(ink.measureText(line+c).width>308){ink.fillText(line,45,y);line='';y+=34;if(y>485)break}
@@ -313,14 +391,14 @@ function bindBook(total){
     ctx.save();
     ctx.transform(dx,dy,vx,vy,a[0],a[1]);
     if(det>0)ctx.drawImage(texture,i*texture.width/strips,0,texture.width/strips,texture.height,0,0,1.12,1);
-    else if(texture===cv){ctx.fillStyle='#eee5d2';ctx.fillRect(0,0,1.12,1)}
+    else if(texture===coverFace){ctx.fillStyle='#e3e8e9';ctx.fillRect(0,0,1.12,1)}
     else{
      ctx.translate(1,0);ctx.scale(-1,1);
      ctx.drawImage(texture,(strips-1-i)*texture.width/strips,0,texture.width/strips,texture.height,-.12,0,1.12,1);
     }
     if(shade){
      const light=Math.min(.23,Math.abs(dy)/(Math.abs(dx)+Math.abs(dy)+.01)*.25);
-     ctx.fillStyle='rgba(80,66,44,'+light+')';ctx.fillRect(0,0,1.12,1);
+     ctx.fillStyle='rgba(62,75,80,'+light+')';ctx.fillRect(0,0,1.12,1);
     }
     ctx.restore();
    }
@@ -365,7 +443,7 @@ function bindBook(total){
   // A cloth cover and a few exposed leaves give the floating book a visible fore edge.
   const sides=open>.95?[-1,1]:[1];
   for(const side of sides){
-   for(const [z,color,margin] of [[-.079,'#193c32',.025],[-.062,'#ad9d81',.008],[-.042,'#e7dcc6',.006],[-.025,'#bfaf94',.003]]){
+   for(const [z,color,margin] of [[-.079,'#afbabc',.025],[-.062,'#bcc5c7',.008],[-.042,'#f4f6f6',.006],[-.025,'#cdd5d6',.003]]){
     const outer=side*(1+margin);
     const corners=[[0,-.69-margin],[outer,-.69-margin],[outer,.69+margin],[0,.69+margin]];
     ctx.beginPath();
@@ -387,14 +465,15 @@ function bindBook(total){
    });
   }
   if(front===1){
-   ctx.drawImage(cv,cx,cy-scale*.69,scale,scale*1.38);
+   ctx.drawImage(coverFace,cx,cy-scale*.69,scale,scale*1.38);
   }else if(open<.99){
-   drawSheet(cv,(u,y)=>project(u*Math.cos(open*Math.PI),y,.015+u*Math.sin(open*Math.PI)),false);
+   drawSheet(coverFace,(u,y)=>project(u*Math.cos(open*Math.PI),y,.015+u*Math.sin(open*Math.PI)),false);
   }
   if(!closing&&open>=.99){
    if(phase==='idle'&&collected>landed){
     next=collected-landed>4?collected:landed+1;
     phase=landed?'turn':'fly';since=now;sequence++;
+    leafMotion=fallingLeaf(directions[(sequence-1)%directions.length],sequence);
    }
    const fast=collected-landed>1;
    if(phase==='turn'){
@@ -407,20 +486,9 @@ function bindBook(total){
    }
    if(phase==='fly'){
     if(landed)flat(paper(landed),-1,.005);
-    const t=reduced?1:bounded((now-since)/(fast?390:790));
-    const left=1-ease(t),[ax,ay]=directions[(sequence-1)%directions.length];
-    drawSheet(paper(next),(u,y)=>{
-     const curl=(1-t)*2.55;
-     const x=curl?Math.sin(curl*u)/curl:u;
-     const z=curl?(1-Math.cos(curl*u))/curl:0;
-     const gust=Math.sin(Math.PI*t);
-     const sway=Math.sin(2.7*Math.PI*t+sequence)*gust;
-     const roll=.68*sway, pitch=.78*gust*Math.cos(3*Math.PI*t+sequence);
-     const py=y*Math.cos(pitch),px=x-.5;
-     return project(.5+px*Math.cos(roll)-py*Math.sin(roll)+left*ax*2.55+.38*sway,
-      py*Math.cos(roll)+px*Math.sin(roll)+left*ay*1.95+.22*gust,
-      z+y*Math.sin(pitch)+left*.92+.22*gust+.012);
-    });
+    const t=reduced?1:bounded((now-since)/(fast?780:1580));
+    const surface=leafMotion(t*1.78);
+    drawSheet(paper(next),(u,y)=>project(...surface(u,y)));
     if(t>=1){landed=next;phase='idle'}
    }
   }
@@ -438,7 +506,7 @@ function bindBook(total){
   cancel.disabled=true;
   try{
    if(saved){
-    const deadline=performance.now()+1800;
+    const deadline=performance.now()+2750;
     while(!reduced&&landed<collected&&performance.now()<deadline&&!document.hidden)
      await new Promise(resolve=>setTimeout(resolve,45));
     closing=performance.now();landed=total;phase='idle';
