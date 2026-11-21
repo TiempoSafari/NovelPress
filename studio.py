@@ -14,6 +14,7 @@ from book import analyze, write_book
 
 class Studio:
     def __init__(self):
+        self._update_progress = {"bytes": 0, "total": 0, "phase": "正在查询版本"}
         self._login = None
         self._book = None
         self._stop = threading.Event()
@@ -65,12 +66,43 @@ class Studio:
         if not self._lock.acquire(blocking=False):
             return "请先完成当前制书操作。"
         try:
-            updates.download(version)
+            def report(received, total, phase):
+                self._update_progress = {"bytes": received, "total": total, "phase": phase}
+            report(0, 0, "正在查询版本")
+            updates.download(version, report)
             return "安装向导已打开，请保存当前操作并关闭拾卷后继续。"
         except Exception as e:
             return f"未能启动更新：{e}"
         finally:
             self._lock.release()
+
+    def update_progress(self):
+        return self._update_progress
+
+    def window_action(self, action):
+        from ctypes import windll
+        window = webview.windows[0]
+        hwnd = window.native.Handle.ToInt64()
+        if action == "close":
+            window.destroy()
+        elif action == "minimize":
+            window.minimize()
+        elif action == "maximize":
+            if windll.user32.IsZoomed(hwnd):
+                window.restore()
+            else:
+                from System.Windows.Forms import Screen
+                window.native.MaximizedBounds = Screen.FromHandle(window.native.Handle).WorkingArea
+                window.maximize()
+        return bool(windll.user32.IsZoomed(hwnd))
+
+    def resize_edge(self, edge):
+        from ctypes import windll
+        edges = ("w", "e", "n", "nw", "ne", "s", "sw", "se")
+        hwnd = webview.windows[0].native.Handle.ToInt64()
+        if edge in edges and not windll.user32.IsZoomed(hwnd):
+            # WM_SYSCOMMAND / SC_SIZE hands the drag to Windows' sizing loop.
+            windll.user32.PostMessageW(hwnd, 0x0112, 0xF000 + edges.index(edge) + 1, 0)
 
     def esj_login(self):
         if self._login is None:
@@ -135,7 +167,7 @@ class Studio:
                     raise InterruptedError()
 
             def report(done, chapter):
-                self._progress = {"done": done, "chapter": chapter}
+                self._progress = {"kind": "export", "done": done, "chapter": chapter}
 
             write_book(tmp, title, author, selected, base64.b64decode(picture), report, check, self._book.get("_rule"))
             check()
@@ -157,5 +189,5 @@ if __name__ == "__main__":
     page = Path(__file__).with_name("studio.html").read_text(encoding="utf-8-sig")
     icon = Path(__file__).with_name("book.ico")
     page = page.replace("__APP_ICON__", base64.b64encode(icon.read_bytes()).decode("ascii"))
-    webview.create_window("拾卷 · 网页小说制书工具", html=page, js_api=Studio(), width=1100, height=790, min_size=(760, 600), background_color="#f7f8f4", text_select=True)
+    webview.create_window("拾卷 · 网页小说制书工具", html=page, js_api=Studio(), width=1100, height=790, min_size=(760, 600), frameless=True, easy_drag=False, shadow=True, background_color="#f7f8f4", text_select=True)
     webview.start(gui="edgechromium", private_mode=True, icon=str(icon))

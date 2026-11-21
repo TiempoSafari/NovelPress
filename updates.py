@@ -36,7 +36,7 @@ def latest(include_asset=False):
     return result
 
 
-def download(version):
+def download(version, report=lambda received, total, phase: None):
     info = latest(include_asset=True)
     if info.get("version") != version or not info.get("asset"):
         raise ValueError("发布信息已变化，请重新检查更新。")
@@ -47,17 +47,21 @@ def download(version):
     folder = Path(os.environ["LOCALAPPDATA"]) / "NovelPress" / "updates"
     folder.mkdir(parents=True, exist_ok=True)
     address = f"{BASE}/releases/download/v{version}/{asset['name']}"
+    total = asset["size"]
+    report(0, total, "正在下载安装包")
     hasher = hashlib.sha256()
     with tempfile.NamedTemporaryFile(dir=folder, delete=False, suffix=".part") as f:
         temp = Path(f.name)
     try:
         with requests.get(address, stream=True, timeout=(8, 30)) as r, temp.open("wb") as out:
             r.raise_for_status()
-            for block in r.iter_content(128 * 1024):
+            for block in r.iter_content(32 * 1024):
                 out.write(block)
                 hasher.update(block)
                 if out.tell() > asset["size"]:
                     raise ValueError("安装包大小异常。")
+                report(out.tell(), total, "正在下载安装包")
+        report(temp.stat().st_size, total, "正在核对 SHA-256")
         if temp.stat().st_size != asset["size"] or hasher.hexdigest() != digest[7:]:
             raise ValueError("安装包校验失败，请重试。")
         target = folder / asset["name"]
